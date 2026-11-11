@@ -41,6 +41,13 @@ Prime Video tab.
 | `options/` | Settings page |
 | `test/harness.html` | Fake Prime player for working on the overlay without Prime |
 
+## Word lists
+
+`lists/top2000.json` holds the 2000 most common words in German subtitles, taken from
+`de_50k.txt` in [FrequencyWords](https://github.com/hermitdave/FrequencyWords)
+(OpenSubtitles 2018, CC BY-SA 4.0), keeping only all-letter words. The other lists are
+hand-written.
+
 ## Testing without Prime Video
 
 ```bash
