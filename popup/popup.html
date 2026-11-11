@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 240px; margin: 0; padding: 12px 14px; font: 13px/1.5 system-ui, -apple-system, sans-serif; color: #222; }
+  h1 { font-size: 14px; margin: 0 0 10px; }
+  label { display: block; margin: 4px 0; cursor: pointer; }
+  fieldset { border: 0; padding: 0; margin: 10px 0; }
+  legend { font-weight: 600; padding: 0; margin-bottom: 2px; }
+  a { color: #3b6ef5; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1f1f24; color: #ececf1; }
+    a { color: #8fb0ff; }
+  }
+</style>
+</head>
+<body>
+  <h1>Deutsche Untertitel</h1>
+  <label><input type="checkbox" id="enabled"> On for Prime Video</label>
+  <fieldset>
+    <legend>Mode</legend>
+    <label><input type="radio" name="mode" value="sentence"> Full sentence</label>
+    <label><input type="radio" name="mode" value="word"> Single word</label>
+  </fieldset>
+  <a href="#" id="settings">Settings</a>
+  <script src="../src/store.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
