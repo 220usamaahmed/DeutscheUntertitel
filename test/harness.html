@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DTU harness</title>
+<style>
+  body { margin: 0; background: #111; color: #ccc; font: 14px system-ui; }
+  .webPlayerSDKContainer { position: relative; width: 760px; height: 428px; margin: 16px auto; background: linear-gradient(#335, #553); }
+  video { width: 100%; height: 100%; }
+  .atvwebplayersdk-captions-overlay { position: absolute; left: 0; right: 0; bottom: 60px; text-align: center; pointer-events: none; }
+  .atvwebplayersdk-captions-text { display: inline-block; font-size: 28px; color: #fff; background: rgba(0,0,0,.7); padding: 2px 8px; }
+  #controls { text-align: center; }
+</style>
+</head>
+<body>
+<div id="controls">
+  <button id="next">Next line</button>
+  <button id="mode">Toggle mode</button>
+  <span id="log"></span>
+</div>
+<div class="webPlayerSDKContainer" id="player">
+  <video></video>
+  <div class="atvwebplayersdk-captions-overlay"><div id="cap"></div></div>
+</div>
+
+<script>
+  // Stubs for the extension APIs, so the content scripts run on a plain page.
+  self.DTU_FORCE_SITE = "prime";
+  const mem = {};
+  const listeners = [];
+  window.chrome = {
+    runtime: { getURL: (p) => "../" + p },
+    storage: {
+      local: {
+        async get(keys) {
+          const ks = typeof keys === "string" ? [keys] : keys;
+          return Object.fromEntries(ks.filter((k) => k in mem).map((k) => [k, structuredClone(mem[k])]));
+        },
+        async set(obj) {
+          const changes = {};
+          for (const [k, v] of Object.entries(obj)) {
+            changes[k] = { oldValue: mem[k], newValue: structuredClone(v) };
+            mem[k] = structuredClone(v);
+          }
+          listeners.forEach((l) => l(changes, "local"));
+        },
+        async remove(keys) {
+          const changes = {};
+          for (const k of keys) { changes[k] = { oldValue: mem[k] }; delete mem[k]; }
+          listeners.forEach((l) => l(changes, "local"));
+        },
+      },
+      onChanged: { addListener: (l) => listeners.push(l) },
+    },
+  };
+
+  // Fake AI unless ?real is in the URL (or Chrome's AI is missing).
+  const real = new URLSearchParams(location.search).has("real");
+  if (!real || !("Translator" in self)) {
+    self.Translator = {
+      availability: async () => "available",
+      create: async () => ({ translate: async (t) => (await sleep(40), `EN(${t})`) }),
+    };
+  }
+  if (!real || !("LanguageModel" in self)) {
+    self.LanguageModel = {
+      availability: async () => "available",
+      create: async () => {
+        const s = {
+          clone: async () => s,
+          destroy() {},
+          prompt: async (p) => {
+            await sleep(600);
+            const word = p.match(/Word: "(.*)"/)[1];
+            return JSON.stringify({
+              lemma: word.toLowerCase() === "ging" ? "gehen" : word.toLowerCase(),
+              partOfSpeech: "verb",
+              meaningInContext: `meaning of ${word}`,
+              alternatives: ["alt one", "alt two", "alt three"],
+              forms: word.toLowerCase() === "ging" ? ["gehe", "gehst", "geht", "ging", "gegangen"] : [],
+            });
+          },
+        };
+        return s;
+      },
+    };
+  }
+  function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+  // Caption driver: mimics Prime's caption DOM.
+  const lines = [
+    "Ich rufe dich morgen an.",
+    "Er ging gestern nach Hause,\naber die Tür war verschlossen.",
+    "",
+    "Geht es dir gut?",
+    "Der Zusammenhang ist mir nicht klar.",
+  ];
+  let i = -1;
+  function next() {
+    i = (i + 1) % lines.length;
+    const cap = document.getElementById("cap");
+    cap.replaceChildren(...lines[i].split("\n").filter(Boolean).map((l) => {
+      const s = document.createElement("span");
+      s.className = "atvwebplayersdk-captions-text";
+      s.textContent = l;
+      const d = document.createElement("div");
+      d.append(s);
+      return d;
+    }));
+    document.getElementById("log").textContent = `line ${i}`;
+  }
+  document.getElementById("next").onclick = next;
+  document.getElementById("mode").onclick = () =>
+    chrome.storage.local.get("settings").then((r) => {
+      const s = r.settings || {};
+      chrome.storage.local.set({ settings: { ...s, mode: s.mode === "word" ? "sentence" : "word" } });
+    });
+  // Player click toggles a flag, so we can check clicks on captions don't reach it.
+  document.getElementById("player").addEventListener("click", () => {
+    document.getElementById("log").textContent += " | PLAYER CLICKED";
+  });
+  next();
+</script>
+<script src="../src/store.js"></script>
+<script src="../src/ai.js"></script>
+<script src="../src/words.js"></script>
+<script src="../src/prime.js"></script>
+<script src="../src/overlay.js"></script>
+<script src="../src/main.js"></script>
+</body>
+</html>

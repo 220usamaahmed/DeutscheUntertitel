@@ -1,0 +1,128 @@
+:host {
+  all: initial;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.box {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 90%;
+  width: max-content;
+  text-align: center;
+  pointer-events: auto;
+  font-family: system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.line {
+  width: fit-content;
+  margin: 0 auto 0.15em;
+  padding: 0.05em 0.4em;
+  line-height: 1.3;
+  border-radius: 0.2em;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.word .line.de {
+  line-height: 1.9;
+}
+
+.line.en {
+  color: #ffe7a3;
+  font-size: 0.8em;
+}
+
+.w {
+  cursor: pointer;
+  ruby-position: over;
+}
+
+.w:hover > span,
+.w.active > span {
+  text-decoration: underline;
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.15em;
+}
+
+rt {
+  padding: 0 0.25em;
+  font-size: 0.5em;
+  color: #9fd6ff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.w.known rt {
+  visibility: hidden;
+}
+
+.w.known:hover rt,
+.w.known.active rt {
+  visibility: visible;
+}
+
+.popup {
+  position: absolute;
+  width: max-content;
+  max-width: 320px;
+  padding: 10px 12px;
+  pointer-events: auto;
+  border-radius: 8px;
+  background: #1f1f24;
+  color: #ececf1;
+  font: 14px/1.45 system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  text-align: left;
+}
+
+.popup .head b {
+  font-size: 16px;
+}
+
+.popup .lemma {
+  color: #9fd6ff;
+}
+
+.popup .pos {
+  color: #9a9aa6;
+}
+
+.popup .body {
+  margin: 4px 0 10px;
+}
+
+.popup .ctx {
+  color: #ffe7a3;
+}
+
+.popup .alts {
+  color: #c4c4cc;
+}
+
+.popup .toggle,
+.notice {
+  font: 13px system-ui, -apple-system, sans-serif;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: #3b6ef5;
+  color: #fff;
+  cursor: pointer;
+}
+
+.popup .toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.notice {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
