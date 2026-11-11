@@ -1,7 +1,7 @@
 # Deutsche Untertitel
 
 A personal Chrome extension that shows English translations of German subtitles on
-Prime Video. Everything runs on-device with Chrome's built-in AI:
+Prime Video and YouTube. Everything runs on-device with Chrome's built-in AI:
 
 - **Translator API** translates subtitle lines and single words.
 - **Prompt API** (Gemini Nano) runs only when you click a word, to show its lemma,
@@ -14,6 +14,11 @@ Prime Video. Everything runs on-device with Chrome's built-in AI:
   hide their translation until you hover over them.
 
 Click any word in either mode to open the word popup and mark it as known or unknown.
+Captions hold still while the popup is open.
+
+On YouTube, turn on German captions (auto-generated ones work). Those roll in a word
+at a time, so in full-sentence mode the English for the sentence still being spoken
+changes as it grows. Captions in other languages are left as YouTube shows them.
 
 ## Install
 
@@ -23,7 +28,7 @@ Click any word in either mode to open the word popup and mark it as known or unk
    downloads the translation and Gemini Nano models.
 
 After changing code, click the reload icon on the extension's card and reload the
-Prime Video tab.
+video tab. The page's `<html data-dtu="ready 0.2.0">` shows which version is running.
 
 ## Layout
 
@@ -34,6 +39,7 @@ Prime Video tab.
 | `src/ai.js` | Translator and Prompt API wrappers |
 | `src/words.js` | Tokenising and known-word matching |
 | `src/prime.js` | Prime Video adapter: where the captions live in the page |
+| `src/youtube.js` | YouTube adapter, including rolling auto-generated captions |
 | `src/overlay.js` | Caption overlay and word popup |
 | `src/main.js` | Wires the adapter, overlay and settings together |
 | `lists/` | Built-in word lists |
