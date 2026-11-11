@@ -29,7 +29,7 @@
   const mem = {};
   const listeners = [];
   window.chrome = {
-    runtime: { getURL: (p) => "../" + p },
+    runtime: { getURL: (p) => "../" + p, getManifest: () => ({ version: "harness" }) },
     storage: {
       local: {
         async get(keys) {

@@ -58,7 +58,7 @@ const setState = (s) => (document.documentElement.dataset.dtu = s);
 
   setInterval(check, 1000);
   check();
-  setState("ready");
+  setState(`ready ${chrome.runtime.getManifest().version}`);
 
   Store.watch(async (keys) => {
     if (keys.includes("settings")) {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Deutsche Untertitel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shows English translations of German subtitles on Prime Video, fully on-device.",
   "permissions": ["storage"],
   "action": {
