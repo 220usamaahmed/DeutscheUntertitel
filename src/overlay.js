@@ -215,8 +215,25 @@ class Overlay {
       const { meaningInContext, ...rest } = r;
       Store.info.set(word, rest);
       Store.context.set(ctxKey, meaningInContext);
-      return r;
+      return { ...r };
     });
+  }
+
+  // Fetches the lemma's inflected forms in the background while the popup is read,
+  // so they're usually ready by the time "Mark as known" is clicked.
+  loadForms(word, info) {
+    if (info.forms) return Promise.resolve(info.forms);
+    return AI.forms(info.lemma, info.partOfSpeech)
+      .then((forms) => {
+        info.forms = forms;
+        const cached = Store.info.peek(word);
+        if (cached) Store.info.set(word, { ...cached, forms });
+        return forms;
+      })
+      .catch((e) => {
+        console.warn("[Deutsche Untertitel] forms lookup failed", e);
+        return [];
+      });
   }
 
   showInfo(w, word, info) {
@@ -234,6 +251,7 @@ class Overlay {
       body.push(el("div", "alts", `Also: ${info.alternatives.join(", ")}`));
     }
     this.popupBody.replaceChildren(...body);
+    this.popupForms = this.loadForms(word, info);
     // The cached lemma can change whether this word counts as known.
     w.classList.toggle("known", Words.isKnown(word));
     this.popupButton.disabled = false;
@@ -259,9 +277,16 @@ class Overlay {
   }
 
   async toggleKnown(word) {
-    this.popupButton.disabled = true;
-    if (Words.isKnown(word)) await Words.markUnknown(word, this.popupInfo);
-    else await Words.markKnown(word, this.popupInfo);
+    const button = this.popupButton;
+    const info = this.popupInfo;
+    button.disabled = true;
+    if (info && !info.forms && this.popupForms) {
+      button.textContent = "Saving…";
+      await this.popupForms;
+    }
+    if (Words.isKnown(word)) await Words.markUnknown(word, info);
+    else await Words.markKnown(word, info);
+    if (button !== this.popupButton) return; // popup closed meanwhile
     this.refreshKnown();
     this.popupButton.disabled = false;
   }
@@ -279,7 +304,7 @@ class Overlay {
   closePopup() {
     if (!this.popupWord) return;
     this.popupWord.classList.remove("active");
-    this.popupWord = this.popupInfo = this.popupButton = null;
+    this.popupWord = this.popupInfo = this.popupButton = this.popupForms = null;
     this.popup.hidden = true;
     if (this.pausedVideo) {
       this.pausedVideo.play().catch(() => {});

@@ -76,7 +76,9 @@ const setState = (s) => (document.documentElement.dataset.dtu = s);
     if (AI.hasTranslator() && (await AI.translatorAvailability()) === "available") {
       await AI.translator();
     }
-    if (AI.hasPrompt() && (await AI.promptAvailability()) === "available") await AI.session();
+    if (AI.hasPrompt() && (await AI.promptAvailability()) === "available") {
+      await Promise.all([AI.session("lookup"), AI.session("forms")]);
+    }
   } catch (e) {
     console.warn("[Deutsche Untertitel] warm-up failed", e);
   }

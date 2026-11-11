@@ -94,7 +94,7 @@ async function prepareModels() {
   $("prepare").disabled = true;
   const jobs = [];
   if (AI.hasTranslator()) jobs.push(AI.translator(progress("translator-status")));
-  if (AI.hasPrompt()) jobs.push(AI.session(progress("prompt-status")));
+  if (AI.hasPrompt()) jobs.push(AI.session("lookup", progress("prompt-status")));
   const results = await Promise.allSettled(jobs);
   for (const r of results) if (r.status === "rejected") console.warn(r.reason);
   await showModelStatus();

@@ -71,13 +71,17 @@
           destroy() {},
           prompt: async (p) => {
             await sleep(600);
-            const word = p.match(/Word: "(.*)"/)[1];
+            const m = p.match(/Word: "(.*)"/);
+            if (!m) {
+              // Forms prompt: "<lemma> (<pos>)"
+              return JSON.stringify(p.startsWith("gehen") ? ["gehe", "gehst", "geht", "ging", "gegangen"] : []);
+            }
+            const word = m[1];
             return JSON.stringify({
               lemma: word.toLowerCase() === "ging" ? "gehen" : word.toLowerCase(),
               partOfSpeech: "verb",
               meaningInContext: `meaning of ${word}`,
               alternatives: ["alt one", "alt two", "alt three"],
-              forms: word.toLowerCase() === "ging" ? ["gehe", "gehst", "geht", "ging", "gegangen"] : [],
             });
           },
         };
