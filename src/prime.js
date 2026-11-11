@@ -41,10 +41,10 @@ const PrimeAdapter = {
     return { rect, fontSize: parseFloat(getComputedStyle(el).fontSize) };
   },
 
-  // The player can hold more than one <video> (e.g. a paused trailer); use the playing one.
+  // The movie's <video> is inside #dv-web-player but outside the player container.
+  // The title page's trailer is another <video> outside #dv-web-player; never use it.
   video(container) {
-    const videos = [...container.querySelectorAll("video")];
-    return videos.find((v) => !v.paused) || videos.at(-1);
+    return (container.closest("#dv-web-player") || document).querySelector("video");
   },
 };
 
