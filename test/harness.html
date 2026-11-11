@@ -5,10 +5,10 @@
 <title>DTU harness</title>
 <style>
   body { margin: 0; background: #111; color: #ccc; font: 14px system-ui; }
-  .webPlayerSDKContainer { position: relative; width: 760px; height: 428px; margin: 16px auto; background: linear-gradient(#335, #553); }
+  .atvwebplayersdk-player-container { position: relative; width: 760px; height: 428px; margin: 16px auto; background: linear-gradient(#335, #553); }
   video { width: 100%; height: 100%; }
-  .atvwebplayersdk-captions-overlay { position: absolute; left: 0; right: 0; bottom: 60px; text-align: center; pointer-events: none; }
-  .atvwebplayersdk-captions-text { display: inline-block; font-size: 28px; color: #fff; background: rgba(0,0,0,.7); padding: 2px 8px; }
+  #cap { position: absolute; left: 0; right: 0; bottom: 60px; text-align: center; pointer-events: none; margin: 0; }
+  .atvwebplayersdk-captions-text { font-size: 28px; color: #fff; background: rgba(0,0,0,.5); padding: 2px 8px; }
   #controls { text-align: center; }
 </style>
 </head>
@@ -18,9 +18,9 @@
   <button id="mode">Toggle mode</button>
   <span id="log"></span>
 </div>
-<div class="webPlayerSDKContainer" id="player">
+<div class="atvwebplayersdk-player-container" id="player">
   <video></video>
-  <div class="atvwebplayersdk-captions-overlay"><div id="cap"></div></div>
+  <div><p id="cap"></p></div>
 </div>
 
 <script>
@@ -99,14 +99,14 @@
   function next() {
     i = (i + 1) % lines.length;
     const cap = document.getElementById("cap");
-    cap.replaceChildren(...lines[i].split("\n").filter(Boolean).map((l) => {
-      const s = document.createElement("span");
-      s.className = "atvwebplayersdk-captions-text";
-      s.textContent = l;
-      const d = document.createElement("div");
-      d.append(s);
-      return d;
-    }));
+    // Like Prime: one span per caption, lines separated by <br>.
+    cap.replaceChildren();
+    if (lines[i]) {
+      const span = document.createElement("span");
+      span.className = "atvwebplayersdk-captions-text";
+      lines[i].split("\n").forEach((l, j) => { if (j) span.append(document.createElement("br")); span.append(l); });
+      cap.append(span);
+    }
     document.getElementById("log").textContent = `line ${i}`;
   }
   document.getElementById("next").onclick = next;

@@ -1,8 +1,12 @@
 // Finds the player's captions, watches them for changes and drives the overlay.
 
+// Progress is written to <html data-dtu="…">, which is readable from the page and DevTools.
+const setState = (s) => (document.documentElement.dataset.dtu = s);
+
 (async () => {
   const site = ADAPTERS.find((a) => a.id === self.DTU_FORCE_SITE || a.matches());
   if (!site) return;
+  setState("starting");
 
   await Store.load({ caches: true });
   await Words.refresh();
@@ -20,9 +24,14 @@
     overlay.render(text);
   }
 
+  // Throttled, not debounced: the observed player also holds the controls, whose clock
+  // changes constantly and would keep postponing a debounced update.
   function schedule() {
-    clearTimeout(timer);
-    timer = setTimeout(update, site.stableMs);
+    if (timer) return;
+    timer = setTimeout(() => {
+      timer = null;
+      if (container) update();
+    }, site.stableMs);
   }
 
   function detach() {
@@ -49,6 +58,7 @@
 
   setInterval(check, 1000);
   check();
+  setState("ready");
 
   Store.watch(async (keys) => {
     if (keys.includes("settings")) {
@@ -70,4 +80,7 @@
   } catch (e) {
     console.warn("[Deutsche Untertitel] warm-up failed", e);
   }
-})();
+})().catch((e) => {
+  setState(`error: ${e.message}`);
+  console.error("[Deutsche Untertitel]", e);
+});
