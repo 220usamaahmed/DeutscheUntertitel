@@ -35,7 +35,18 @@ class Overlay {
       if (w) this.togglePopup(w);
     });
     document.addEventListener("pointerdown", (e) => this.onPointerDown(e), true);
-    document.addEventListener("keydown", (e) => e.key === "Escape" && this.closePopup(), true);
+    // Esc closes the popup only; Prime would otherwise also close its player.
+    // Registered on window in the capture phase so it runs before the page's handlers.
+    window.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key !== "Escape" || !this.popupWord) return;
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        this.closePopup();
+      },
+      true,
+    );
     new ResizeObserver(() => this.place()).observe(this.host);
 
     const style = el("style");
@@ -293,9 +304,11 @@ class Overlay {
 
   placePopup() {
     if (!this.popupWord) return;
+    // Above the whole caption block, so it never covers a caption line.
     const hr = this.host.getBoundingClientRect();
     const wr = this.popupWord.getBoundingClientRect();
-    this.popup.style.bottom = `${hr.bottom - wr.top + 8}px`;
+    const br = this.box.getBoundingClientRect();
+    this.popup.style.bottom = `${hr.bottom - br.top + 8}px`;
     const pw = this.popup.offsetWidth;
     const left = wr.left + wr.width / 2 - hr.left - pw / 2;
     this.popup.style.left = `${Math.max(8, Math.min(left, hr.width - pw - 8))}px`;
