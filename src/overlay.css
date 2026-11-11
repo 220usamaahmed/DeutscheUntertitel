@@ -40,6 +40,7 @@
 .w {
   cursor: pointer;
   ruby-position: over;
+  ruby-align: center; /* don't spread "wing noise" across a long word */
 }
 
 .w:hover > span,
