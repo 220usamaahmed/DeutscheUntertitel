@@ -5,6 +5,7 @@ const STOP_EVENTS = [
   "click", "dblclick", "mousedown", "mouseup", "pointerdown", "pointerup", "touchstart", "touchend",
 ];
 const CONTEXT_SEP = "␟";
+const SENTENCES = new Intl.Segmenter("de", { granularity: "sentence" });
 
 class Overlay {
   constructor(site) {
@@ -13,6 +14,8 @@ class Overlay {
     this.text = "";
     this.renderId = 0;
     this.sentences = new Map(); // German line -> English, for this page session only
+    this.english = ""; // the English line shown last, kept while rolling captions grow
+    this.pendingText = null; // caption text that arrived while the popup was open
     this.popupWord = null; // the word element the open popup belongs to
     this.pausedVideo = null; // the video we paused when opening the popup
 
@@ -36,6 +39,7 @@ class Overlay {
     });
     document.addEventListener("pointerdown", (e) => this.onPointerDown(e), true);
     // Esc closes the popup only; Prime would otherwise also close its player.
+    // (In fullscreen the browser still takes Esc to leave fullscreen.)
     // Registered on window in the capture phase so it runs before the page's handlers.
     window.addEventListener(
       "keydown",
@@ -65,6 +69,7 @@ class Overlay {
   }
 
   detach() {
+    this.pendingText = null;
     this.closePopup();
     this.host.remove();
     this.container = null;
@@ -78,6 +83,13 @@ class Overlay {
   }
 
   render(text) {
+    // Keep the captions, and the popup's word, still while the popup is open;
+    // closing it shows the latest line. Rolling captions change every word.
+    if (this.popupWord && text !== this.text) {
+      this.pendingText = text;
+      return;
+    }
+    this.pendingText = null;
     this.text = text;
     const id = ++this.renderId;
     this.closePopup();
@@ -91,6 +103,7 @@ class Overlay {
     if (!text) {
       // Stay active between lines, so the next native line doesn't flash before ours.
       this.box.hidden = true;
+      this.english = "";
       return;
     }
 
@@ -120,9 +133,15 @@ class Overlay {
     }
 
     if (mode === "sentence") {
-      const en = el("div", "line en", " ");
+      // Rolling captions keep the last English until the grown line's arrives, so it
+      // doesn't blink with every word.
+      const en = el("div", "line en", (this.site.rolling && this.english) || " ");
       this.box.append(en);
-      this.fill(en, id, () => this.translateSentence(text.replace(/\n/g, " ")));
+      const line = text.replace(/\n/g, " ");
+      const translate = this.site.rolling ? () => this.translateRolling(line) : () => this.translateSentence(line);
+      this.fill(en, id, translate).then(() => {
+        if (id === this.renderId) this.english = en.textContent;
+      });
     } else {
       for (const [rt, word] of glosses) this.fill(rt, id, () => this.translateWord(word));
     }
@@ -141,8 +160,19 @@ class Overlay {
   }
 
   async translateSentence(line) {
-    if (!this.sentences.has(line)) this.sentences.set(line, await AI.translate(line));
+    if (!this.sentences.has(line)) {
+      if (this.sentences.size > 2000) this.sentences.clear();
+      this.sentences.set(line, await AI.translate(line));
+    }
     return this.sentences.get(line);
+  }
+
+  // A rolling window cuts sentences at both ends and grows a word at a time.
+  // Translating sentence by sentence keeps the finished ones stable (and cached),
+  // so only the one still being spoken changes.
+  async translateRolling(text) {
+    const parts = [...SENTENCES.segment(text)].map((s) => s.segment.trim()).filter(Boolean);
+    return (await Promise.all(parts.map((p) => this.translateSentence(p)))).join(" ");
   }
 
   async translateWord(word) {
@@ -323,6 +353,7 @@ class Overlay {
       this.pausedVideo.play().catch(() => {});
       this.pausedVideo = null;
     }
+    if (this.pendingText !== null) this.render(this.pendingText);
   }
 
   // Closes the popup on a click outside it. Clicks on words are handled by togglePopup.

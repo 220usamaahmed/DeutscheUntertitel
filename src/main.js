@@ -3,6 +3,8 @@
 // Progress is written to <html data-dtu="…">, which is readable from the page and DevTools.
 const setState = (s) => (document.documentElement.dataset.dtu = s);
 
+const ADAPTERS = [PrimeAdapter, YouTubeAdapter];
+
 (async () => {
   const site = ADAPTERS.find((a) => a.id === self.DTU_FORCE_SITE || a.matches());
   if (!site) return;
@@ -52,7 +54,15 @@ const setState = (s) => (document.documentElement.dataset.dtu = s);
     container = found;
     overlay.attach(found);
     observer = new MutationObserver(schedule);
-    observer.observe(found, { childList: true, subtree: true, characterData: true });
+    // Attributes too: YouTube moves its captions with a class or style change when the
+    // controls show or hide, which nothing else in the player may mutate alongside.
+    observer.observe(found, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["class", "style"],
+    });
     schedule();
   }
 

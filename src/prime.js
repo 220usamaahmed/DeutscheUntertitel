@@ -47,5 +47,3 @@ const PrimeAdapter = {
     return (container.closest("#dv-web-player") || document).querySelector("video");
   },
 };
-
-const ADAPTERS = [PrimeAdapter];
