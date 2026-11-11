@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Deutsche Untertitel",
+  "version": "0.1.0",
+  "description": "Shows English translations of German subtitles on Prime Video, fully on-device.",
+  "permissions": ["storage"],
+  "action": {
+    "default_title": "Deutsche Untertitel",
+    "default_popup": "popup/popup.html"
+  },
+  "options_page": "options/options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.primevideo.com/*",
+        "https://www.amazon.de/*",
+        "https://www.amazon.com/*",
+        "https://www.amazon.co.uk/*"
+      ],
+      "js": [
+        "src/store.js",
+        "src/ai.js",
+        "src/words.js",
+        "src/prime.js",
+        "src/overlay.js",
+        "src/main.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/overlay.css", "lists/*.json"],
+      "matches": [
+        "https://www.primevideo.com/*",
+        "https://www.amazon.de/*",
+        "https://www.amazon.com/*",
+        "https://www.amazon.co.uk/*"
+      ]
+    }
+  ]
+}
