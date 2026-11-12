@@ -9,7 +9,11 @@ let records = {}; // storage key -> record
 const jobs = []; // { key, lower }: words put on a list that still need their lookup
 let working = false;
 const openGroups = new Set();
-const groupEls = new Map(); // storage key -> <details>
+// The lists re-render on every storage change, including each background lookup finishing.
+// A rebuilt element loses its hover, restarts its animations and undoes a collapse in
+// progress, so rows and group headers are kept and reused while what they show is the same.
+const groupState = new Map(); // storage key -> { details, body, list, summary, actions, headSig, rows, headings }
+const listRows = { learning: new Map(), known: new Map() }; // lemma -> { li, sig }
 let practice = null; // while practising: { current: lemma | null, flipped, answered, busy }
 const listState = {
   learning: { query: "", sort: pref("learning.sort", "recent") },
@@ -84,22 +88,32 @@ function sortedKeys() {
   return Object.keys(records).sort((a, b) => records[b].last - records[a].last);
 }
 
+const noVideos = el("p", "empty muted", "No videos yet. Watch something with German captions and its words appear here.");
+
 function renderGroups() {
   const keys = sortedKeys();
-  for (const k of [...groupEls.keys()]) if (!records[k]) groupEls.delete(k);
-  if (!keys.length) {
-    $("groups").replaceChildren(
-      el("p", "empty muted", "No videos yet. Watch something with German captions and its words appear here."),
-    );
-    return;
-  }
-  $("groups").replaceChildren(...keys.map(renderGroup));
+  for (const k of [...groupState.keys()]) if (!records[k]) groupState.delete(k);
+  reconcile($("groups"), keys.length ? keys.map(renderGroup) : [noVideos]);
+}
+
+// A video's words in the chosen order, each with its status. Common words count as known
+// here: they're handled, just not by you.
+function groupEntries(key) {
+  const entries = Object.entries(records[key].words).map(([lower, e]) => {
+    return { lower, ...e, status: Words.status(e.w) || "new" };
+  });
+  entries.sort($("sort").value === "frequent" ? (a, b) => b.n - a.n || a.o - b.o : (a, b) => a.o - b.o);
+  return entries;
 }
 
 function renderGroup(key) {
   const rec = records[key];
-  const details = groupEls.get(key) || el("details", "group");
-  groupEls.set(key, details);
+  let g = groupState.get(key);
+  if (!g) {
+    g = { details: el("details", "group"), body: el("div", "body"), list: el("ul", "words"), rows: new Map(), headings: new Map() };
+    groupState.set(key, g);
+  }
+  const { details } = g;
   details.open = openGroups.has(key);
   details.ontoggle = () => {
     if (details.open) openGroups.add(key);
@@ -107,15 +121,36 @@ function renderGroup(key) {
     if (details.open) translateGroup(key);
   };
 
-  // Common words count as known here: they're handled, just not by you.
-  const entries = Object.entries(rec.words).map(([lower, e]) => {
-    return { lower, ...e, status: Words.status(e.w) || "new" };
-  });
-  entries.sort($("sort").value === "frequent" ? (a, b) => b.n - a.n || a.o - b.o : (a, b) => a.o - b.o);
+  const entries = groupEntries(key);
   const fresh = entries.filter((e) => e.status === "new");
   const learning = entries.filter((e) => e.status === "learning");
   const known = entries.filter((e) => e.status === "known" || e.status === "common");
 
+  // The header and actions are rebuilt only when what they show changes, so a button
+  // being hovered or waiting for its second click isn't replaced under the pointer.
+  const headSig = [rec.title, rec.id, rec.site, rec.url, rec.last, fresh.length, learning.length, known.length].join("|");
+  if (g.headSig !== headSig) {
+    g.headSig = headSig;
+    g.summary = groupSummary(rec, fresh.length, learning.length, known.length);
+    g.actions = groupActions(key, rec, fresh.length, entries.length);
+  }
+
+  const items = fresh.map((e) => videoRow(g, key, e));
+  if (learning.length) items.push(groupHeading(g, "Learning", learning.length));
+  items.push(...learning.map((e) => videoRow(g, key, e)));
+  if (known.length) items.push(groupHeading(g, "Known", known.length));
+  items.push(...known.map((e) => videoRow(g, key, e)));
+  if (!entries.length) items.push(el("li", "empty muted", "No words in this video."));
+  for (const lower of [...g.rows.keys()]) if (!(lower in rec.words)) g.rows.delete(lower);
+
+  reconcile(g.list, items);
+  reconcile(g.body, [g.actions, g.list]);
+  reconcile(details, [g.summary, g.body]);
+  if (details.open) translateGroup(key);
+  return details;
+}
+
+function groupSummary(rec, nFresh, nLearning, nKnown) {
   const summary = el("summary");
   const head = el("div", "head");
   head.append(el("div", "title", rec.title || rec.id));
@@ -125,17 +160,21 @@ function renderGroup(key) {
   meta.append(
     `${site} · ${when}`,
     el("span", "dot", "·"),
-    el("span", "badge", `${fresh.length} new`),
-    el("span", "badge learning", `${learning.length} learning`),
-    el("span", "badge known", `${known.length} known`),
+    el("span", "badge", `${nFresh} new`),
+    el("span", "badge learning", `${nLearning} learning`),
+    el("span", "badge known", `${nKnown} known`),
   );
   head.append(meta);
   summary.append(icon("chevron"), head);
+  return summary;
+}
 
+function groupActions(key, rec, nFresh, n) {
   const actions = el("div", "actions");
   actions.append(
-    twoClick("Mark the rest as known", `Mark ${fresh.length} as known?`, !fresh.length, () => {
-      putOnList(key, fresh.map((e) => e.lower), "known");
+    twoClick("Mark the rest as known", `Mark ${nFresh} as known?`, !nFresh, () => {
+      // The words still new when it's clicked, not when the button was built.
+      putOnList(key, groupEntries(key).filter((e) => e.status === "new").map((e) => e.lower), "known");
     }),
     el("span", "spacer"),
   );
@@ -149,38 +188,50 @@ function renderGroup(key) {
     a.target = "_blank";
     actions.append(a);
   }
-  const n = entries.length;
   const del = twoClick("Delete video", `Delete ${n} word${n === 1 ? "" : "s"}?`, false, () => chrome.storage.local.remove(key));
   del.classList.add("ghost", "danger");
   actions.append(del);
-
-  const list = el("ul", "words");
-  for (const e of fresh) list.append(videoRow(key, e));
-  if (learning.length) list.append(heading("Learning", learning.length));
-  for (const e of learning) list.append(videoRow(key, e));
-  if (known.length) list.append(heading("Known", known.length));
-  for (const e of known) list.append(videoRow(key, e));
-  if (!entries.length) list.append(el("li", "empty muted", "No words in this video."));
-
-  const body = el("div", "body");
-  body.append(actions, list);
-  details.replaceChildren(summary, body);
-  if (details.open) translateGroup(key);
-  return details;
+  return actions;
 }
 
-function videoRow(key, e) {
+// A section heading ("Learning", "Known"), kept so only its count changes.
+function groupHeading(g, label, n) {
+  let li = g.headings.get(label);
+  if (!li) {
+    li = heading(label, n);
+    g.headings.set(label, li);
+  }
+  setText(li.lastChild, String(n));
+  return li;
+}
+
+// The row for a recorded word, reused unless what it's built from changed. Its lemma and
+// English arrive as lookups finish, so those are filled in place.
+function videoRow(g, key, e) {
+  const sig = [e.status, e.w, e.n, e.c, e.ctx].join("|");
+  let cached = g.rows.get(e.lower);
+  if (cached?.sig !== sig) {
+    cached = { li: buildVideoRow(key, e), sig };
+    g.rows.set(e.lower, cached);
+  }
+  const lemma = Store.info.peek(e.w)?.lemma;
+  const label = lemma && lemma.toLowerCase() !== e.lower ? `→ ${lemma}` : "";
+  const lemmaEl = cached.li.querySelector(".lemma");
+  lemmaEl.hidden = !label;
+  setText(lemmaEl, label);
+  setText(cached.li.querySelector(".en"), Store.translations.peek(e.w) ?? "…");
+  return cached.li;
+}
+
+function buildVideoRow(key, e) {
   const li = el("li", `row ${e.status}`);
   li.dataset.word = e.lower;
-  if (arrived.has(e.lower)) li.classList.add("arrived");
+  flashWhenArrived(li, e.lower);
   if (e.status !== "new") li.classList.add("handled");
 
   const main = el("div", "main");
   const head = el("div", "head");
-  head.append(el("span", "word", e.w));
-  const lemma = Store.info.peek(e.w)?.lemma;
-  if (lemma && lemma.toLowerCase() !== e.lower) head.append(el("span", "lemma", `→ ${lemma}`));
-  head.append(el("span", "en", Store.translations.peek(e.w) ?? "…"));
+  head.append(el("span", "word", e.w), el("span", "lemma"), el("span", "en"));
   const badges = el("span", "badges");
   if (e.n > 1) badges.append(el("span", "badge", `×${e.n}`));
   if (e.c) badges.append(el("span", "badge outline", "clicked"));
@@ -385,12 +436,24 @@ function renderList(list) {
     ul.replaceChildren(el("li", "empty muted", text));
     return;
   }
-  ul.replaceChildren(...shown.map((e) => listRow(list, e)));
+  const rows = listRows[list];
+  for (const lemma of [...rows.keys()]) if (!(lemma in Store[list])) rows.delete(lemma);
+  reconcile(ul, shown.map((e) => cachedListRow(list, e)));
+}
+
+// The row for a list entry, reused unless what it shows changed (its practice weight isn't shown).
+function cachedListRow(list, e) {
+  const sig = JSON.stringify([e.forms, meaningOf(e.lemma, e), e.added, e.ctx, e.video]);
+  const cached = listRows[list].get(e.lemma);
+  if (cached?.sig === sig) return cached.li;
+  const li = listRow(list, e);
+  listRows[list].set(e.lemma, { li, sig });
+  return li;
 }
 
 function listRow(list, e) {
   const li = el("li", `row ${list}`);
-  if (arrived.has(e.lemma.toLowerCase())) li.classList.add("arrived");
+  flashWhenArrived(li, e.lemma.toLowerCase());
   const main = el("div", "main");
   const head = el("div", "head");
   head.append(el("span", "word", e.lemma));
@@ -520,17 +583,21 @@ function syncPractice() {
   const gone = practice.current && !Store.learning[practice.current];
   const revived = !practice.current && Object.keys(Store.learning).length;
   if (gone || revived) nextCard();
-  else renderPractice();
+  else setText($("practice").querySelector(".bar .muted"), practiceCounter()); // not the card: its buttons may be hovered
+}
+
+function practiceCounter() {
+  const n = Object.keys(Store.learning).length;
+  return `${practice.answered} answered this sitting · ${n} word${n === 1 ? "" : "s"} in Learning`;
 }
 
 // `fresh`: a new card (fades in). `turned`: the back of a card that was just flipped.
 function renderPractice(fresh = false, turned = false) {
-  const n = Object.keys(Store.learning).length;
   const bar = el("div", "bar");
   bar.append(
     plainButton("Back to list", "sm ghost", stopPractice, "back"),
     el("span", "spacer"),
-    el("span", "muted", `${practice.answered} answered this sitting · ${n} word${n === 1 ? "" : "s"} in Learning`),
+    el("span", "muted", practiceCounter()),
   );
 
   const lemma = practice.current;
@@ -659,6 +726,30 @@ function arriveThen(lowers, fn) {
   for (const l of lowers) arrived.add(l);
   setTimeout(() => arrived.clear(), 2500);
   return fn();
+}
+
+// A row built while its word is in `arrived` flashes once, then drops the class.
+function flashWhenArrived(li, lower) {
+  if (!arrived.has(lower)) return;
+  li.classList.add("arrived");
+  li.addEventListener("animationend", () => li.classList.remove("arrived"), { once: true });
+}
+
+// Makes `parent`'s children exactly `nodes`, in order, moving or adding only what's out of
+// place. replaceChildren would pull every node out and put it back, which drops hover and
+// restarts animations on rows that didn't change.
+function reconcile(parent, nodes) {
+  const keep = new Set(nodes);
+  for (const child of [...parent.children]) if (!keep.has(child)) child.remove();
+  let next = parent.firstElementChild;
+  for (const node of nodes) {
+    if (node === next) next = next.nextElementSibling;
+    else parent.insertBefore(node, next);
+  }
+}
+
+function setText(node, text) {
+  if (node.textContent !== text) node.textContent = text;
 }
 
 function leaveRow(row, to) {
