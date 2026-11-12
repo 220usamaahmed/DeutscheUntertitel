@@ -155,6 +155,8 @@
   .card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; min-height: 280px; padding: 48px 32px; text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); box-shadow: var(--shadow); }
   .card.front { cursor: pointer; }
   .card.fresh { animation: card-in .25s ease-out; }
+  .card.flip-out { animation: flip-out .16s ease-in forwards; } /* FLIP_MS in words.js */
+  .card.flip-in { animation: flip-in .16s ease-out; }
   .card .word { font-size: 40px; line-height: 1.15; font-weight: 700; letter-spacing: -0.025em; overflow-wrap: anywhere; }
   .card .hint { font-size: 13px; color: var(--muted-foreground); }
   .card .back { width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 10px; padding-top: 20px; border-top: 1px solid var(--border); }
@@ -168,10 +170,12 @@
   .practice .done { display: flex; flex-direction: column; align-items: center; gap: 8px; }
   .practice .done strong { font-size: 18px; color: var(--foreground); }
   @keyframes card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes flip-out { to { transform: perspective(900px) rotateY(90deg); } }
+  @keyframes flip-in { from { transform: perspective(900px) rotateY(-90deg); } to { transform: none; } }
 
   @media (prefers-reduced-motion: reduce) {
     .row, .group > summary .chev, button, nav a { transition: none; }
-    .row.arrived, .card.fresh { animation: none; }
+    .row.arrived, .card.fresh, .card.flip-in { animation: none; }
   }
 
   @media (max-width: 560px) {

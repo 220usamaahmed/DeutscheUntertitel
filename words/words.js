@@ -473,10 +473,30 @@ function nextCard() {
   renderPractice(true);
 }
 
+// The card turns in two halves: the front spins edge-on, then the back turns in from the
+// other side. FLIP_MS is one half and matches the .flip-out and .flip-in animations. The
+// page ignores input while it turns.
+const FLIP_MS = 160;
+
 function flip() {
-  if (!practice?.current || practice.flipped) return;
-  practice.flipped = true;
-  renderPractice();
+  const p = practice;
+  if (!p?.current || p.flipped || p.busy) return;
+  const card = $("practice").querySelector(".card.front");
+  if (!card || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    p.flipped = true;
+    renderPractice();
+    return;
+  }
+  p.busy = true;
+  card.classList.add("flip-out");
+  setTimeout(() => {
+    if (practice !== p) return;
+    p.flipped = true;
+    p.busy = false;
+    // The word may have left Learning meanwhile (another tab): move on instead.
+    if (Store.learning[p.current]) renderPractice(false, true);
+    else nextCard();
+  }, FLIP_MS);
 }
 
 async function answer(rating) {
@@ -503,7 +523,8 @@ function syncPractice() {
   else renderPractice();
 }
 
-function renderPractice(fresh = false) {
+// `fresh`: a new card (fades in). `turned`: the back of a card that was just flipped.
+function renderPractice(fresh = false, turned = false) {
   const n = Object.keys(Store.learning).length;
   const bar = el("div", "bar");
   bar.append(
@@ -521,7 +542,10 @@ function renderPractice(fresh = false) {
     parts.push(done);
   } else {
     const shown = cardWord(lemma, e);
-    const card = el("div", `card ${practice.flipped ? "" : "front"}${fresh ? " fresh" : ""}`.trim());
+    const card = el("div", "card");
+    card.classList.toggle("front", !practice.flipped);
+    card.classList.toggle("fresh", fresh);
+    card.classList.toggle("flip-in", turned);
     card.append(el("div", "word", shown));
     const answers = el("div", "answers");
     if (practice.flipped) {
