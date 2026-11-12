@@ -92,6 +92,17 @@ const Recorder = {
     });
   },
 
+  // Called every second while the player is open. Prime shows its title only for a
+  // few seconds after the mouse moves, often with no caption change in between.
+  tick(site, container) {
+    if (!this.key || !Store.settings.recordWords) return;
+    try {
+      this.video(site, container);
+    } catch (e) {
+      console.warn("[Deutsche Untertitel] reading the video title failed", e);
+    }
+  },
+
   // The player closed or moved on; keep counting from scratch next time.
   reset() {
     this.prev = [];

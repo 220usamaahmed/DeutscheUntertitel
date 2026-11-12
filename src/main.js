@@ -54,7 +54,10 @@ const ADAPTERS = [PrimeAdapter, YouTubeAdapter];
   function check() {
     const found = Store.settings.enabled ? site.findCaptions() : null;
     if (found === container) {
-      if (found) overlay.ensureMounted();
+      if (found) {
+        overlay.ensureMounted();
+        Recorder.tick(site, found);
+      }
       return;
     }
     detach();
