@@ -233,7 +233,6 @@ class Overlay {
     this.popupButtons = {};
     for (const [list, label] of [["known", "Known"], ["learning", "Learning"]]) {
       const b = el("button", `toggle ${list}`, label);
-      b.disabled = true;
       b.addEventListener("click", () => this.setList(word, sentence, list));
       this.popupButtons[list] = b;
       actions.append(b);
@@ -247,10 +246,19 @@ class Overlay {
     this.placePopup();
 
     // Called synchronously from the click, so a first model download is allowed to start.
-    this.lookup(word, sentence).then(
+    const lookup = this.lookup(word, sentence);
+    lookup.then(
       (info) => this.showInfo(w, word, info),
       (e) => this.showLookupError(w, e),
     );
+    // The lookup with the lemma's forms, for the lists; null if it failed. Started when
+    // the lookup shows or a list button is clicked, and kept going if the popup closes.
+    let full = null;
+    this.popupFull = () =>
+      (full ||= lookup.then(
+        (info) => this.loadForms(word, info).then(() => info),
+        () => null,
+      ));
   }
 
   lookup(word, sentence) {
@@ -299,10 +307,10 @@ class Overlay {
       body.push(el("div", "alts", `Also: ${info.alternatives.join(", ")}`));
     }
     this.popupBody.replaceChildren(...body);
-    this.popupForms = this.loadForms(word, info);
+    this.popupFull(); // fetch the forms while the popup is read
     // The cached lemma can change which list this word counts as on.
     applyStatus(w);
-    this.enableButtons();
+    this.updateButtons();
     this.placePopup();
   }
 
@@ -313,7 +321,6 @@ class Overlay {
       e.name === "NotAllowedError"
         ? "Gemini Nano isn't downloaded yet. Use Prepare models on the settings page."
         : `Couldn't look this word up (${e.message}).`;
-    this.enableButtons(); // the lists still work with the word as written
     this.placePopup();
   }
 
@@ -329,33 +336,32 @@ class Overlay {
     this.popupNote.textContent = status === "common" ? "common word" : "";
   }
 
-  enableButtons() {
-    for (const b of Object.values(this.popupButtons)) b.disabled = false;
-    this.updateButtons();
-  }
-
-  // Puts the word on `list`, or takes it off if it's already there.
+  // Puts the word on `list`, or takes it off if it's already there. Works straight away
+  // with what's known so far; if the lookup or forms are still coming, the entry is
+  // filled in once they arrive, even after the popup closed.
   async setList(word, sentence, list) {
-    const buttons = this.popupButtons;
     const info = this.popupInfo;
-    for (const b of Object.values(buttons)) b.disabled = true;
-    if (info && !info.forms && this.popupForms) {
-      buttons[list].textContent = "Saving…";
-      await this.popupForms;
-    }
-    if (Words.status(word) === list) {
-      await Words.remove(word, info);
-    } else {
-      const video = Recorder.info;
-      await Words.add(list, word, info, {
-        en: info?.meaningInContext || Store.translations.peek(word) || "",
-        ctx: sentence,
-        video: video && { title: video.title, url: video.url },
-      });
-    }
-    if (buttons !== this.popupButtons) return; // popup closed meanwhile
-    this.refreshKnown();
-    this.enableButtons();
+    const full = this.popupFull;
+    const video = Recorder.info;
+    const extra = (info) => ({
+      en: info?.meaningInContext || Store.translations.peek(word) || "",
+      ctx: sentence,
+      video: video && { title: video.title, url: video.url },
+    });
+    if (Words.status(word) === list) await Words.remove(word, info);
+    else await Words.add(list, word, info, extra(info));
+    if (this.popupWord) this.refreshKnown();
+    if (info?.forms || !full) return;
+
+    const done = await full();
+    // Taken off meanwhile, or the lookup failed: nothing to fill in.
+    const found = done && Words.find(word);
+    if (!found) return;
+    const entry = Store[found.list][found.lemma];
+    const { lemma, forms } = entryFor(word, done);
+    if (found.lemma === lemma && forms.every((f) => entry.forms.includes(f)) && entry.en) return;
+    await Words.add(found.list, word, done, extra(done));
+    if (this.popupWord) this.refreshKnown();
   }
 
   placePopup() {
@@ -373,7 +379,7 @@ class Overlay {
   closePopup() {
     if (!this.popupWord) return;
     this.popupWord.classList.remove("active");
-    this.popupWord = this.popupInfo = this.popupButtons = this.popupNote = this.popupForms = null;
+    this.popupWord = this.popupInfo = this.popupButtons = this.popupNote = this.popupFull = null;
     this.popup.hidden = true;
     if (this.pausedVideo) {
       this.pausedVideo.play().catch(() => {});

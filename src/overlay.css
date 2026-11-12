@@ -151,11 +151,6 @@ rt {
   cursor: pointer;
 }
 
-.popup .toggle:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 .notice {
   position: absolute;
   top: 16px;

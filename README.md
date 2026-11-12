@@ -50,7 +50,7 @@ move to the episode's group once its title shows.
    downloads the translation and Gemini Nano models.
 
 After changing code, click the reload icon on the extension's card and reload the
-video tab. The page's `<html data-dtu="ready 0.4.0">` shows which version is running.
+video tab. The page's `<html data-dtu="ready 0.4.1">` shows which version is running.
 
 ## Layout
 
