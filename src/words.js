@@ -58,7 +58,9 @@ const Words = {
   // if a popup lookup cached one. Learning wins, then Known, then the built-in lists.
   status(word) {
     const w = word.toLowerCase();
-    const lemma = Store.info.peek(word)?.lemma?.toLowerCase();
+    // A common word (die, zu) isn't matched through its lemma: the lookup sometimes gives
+    // the lemma of the noun after it ("die Beschädigung"), which would colour every "die".
+    const lemma = this.builtIn.has(w) ? undefined : Store.info.peek(word)?.lemma?.toLowerCase();
     const has = (set) => set.has(w) || Boolean(lemma && set.has(lemma));
     if (has(this.learningForms)) return "learning";
     if (has(this.knownForms)) return "known";
@@ -181,6 +183,10 @@ const Words = {
 function entryFor(word, info) {
   const w = word.toLowerCase();
   const lemma = (info?.lemma || word).toLowerCase();
-  const forms = [...new Set([lemma, w, ...(info?.forms || []).map((f) => f.toLowerCase())])];
+  const listed = (info?.forms || []).map((f) => f.toLowerCase());
+  // The clicked word joins the forms, except a common word the lemma's forms don't include:
+  // the lookup can return the noun's lemma for the "die" or "zu" before it.
+  const stray = info?.forms && w !== lemma && !listed.includes(w) && Words.builtIn.has(w);
+  const forms = [...new Set([lemma, ...(stray ? [] : [w]), ...listed])];
   return { lemma, forms };
 }

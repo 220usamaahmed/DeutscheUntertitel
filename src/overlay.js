@@ -369,7 +369,7 @@ class Overlay {
     if (!found) return;
     const entry = Store[found.list][found.lemma];
     const { lemma, forms } = entryFor(word, done);
-    if (found.lemma === lemma && forms.every((f) => entry.forms.includes(f)) && entry.en) return;
+    if (found.lemma === lemma && forms.length === entry.forms.length && forms.every((f) => entry.forms.includes(f)) && entry.en) return;
     await Words.add(found.list, word, done, extra(done));
     if (this.popupWord) this.refreshKnown();
   }
