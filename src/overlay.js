@@ -124,9 +124,9 @@ class Overlay {
         if (mode === "word") {
           const rt = el("rt", null, " ");
           w.append(rt);
-          w.classList.toggle("known", Words.isKnown(tok.text));
           glosses.push([rt, tok.text]);
         }
+        applyStatus(w);
         lineEl.append(w);
       }
       this.box.append(lineEl);
@@ -184,12 +184,10 @@ class Overlay {
     return t;
   }
 
-  // Shows or hides each word's translation after the known lists change.
+  // Updates each word's colour and hidden translation after the lists change.
   refreshKnown() {
-    for (const w of this.box.querySelectorAll(".w")) {
-      w.classList.toggle("known", Words.isKnown(w.dataset.word));
-    }
-    if (this.popupWord && this.popupButton) this.updateToggle();
+    for (const w of this.box.querySelectorAll(".w")) applyStatus(w);
+    if (this.popupWord && this.popupButtons) this.updateButtons();
   }
 
   // Matches the native captions' position and size.
@@ -231,12 +229,20 @@ class Overlay {
 
     this.popupHead = el("div", "head");
     this.popupBody = el("div", "body", "Looking up…");
-    this.popupButton = el("button", "toggle");
-    this.popupButton.disabled = true;
-    this.popupButton.addEventListener("click", () => this.toggleKnown(word));
+    const actions = el("div", "actions");
+    this.popupButtons = {};
+    for (const [list, label] of [["known", "Known"], ["learning", "Learning"]]) {
+      const b = el("button", `toggle ${list}`, label);
+      b.disabled = true;
+      b.addEventListener("click", () => this.setList(word, sentence, list));
+      this.popupButtons[list] = b;
+      actions.append(b);
+    }
+    this.popupNote = el("span", "note");
+    actions.append(this.popupNote);
     this.popupHead.append(el("b", null, word));
-    this.updateToggle();
-    this.popup.replaceChildren(this.popupHead, this.popupBody, this.popupButton);
+    this.updateButtons();
+    this.popup.replaceChildren(this.popupHead, this.popupBody, actions);
     this.popup.hidden = false;
     this.placePopup();
 
@@ -262,7 +268,7 @@ class Overlay {
   }
 
   // Fetches the lemma's inflected forms in the background while the popup is read,
-  // so they're usually ready by the time "Mark as known" is clicked.
+  // so they're usually ready by the time Known or Learning is clicked.
   loadForms(word, info) {
     if (info.forms) return Promise.resolve(info.forms);
     return AI.forms(info.lemma, info.partOfSpeech)
@@ -294,10 +300,9 @@ class Overlay {
     }
     this.popupBody.replaceChildren(...body);
     this.popupForms = this.loadForms(word, info);
-    // The cached lemma can change whether this word counts as known.
-    w.classList.toggle("known", Words.isKnown(word));
-    this.popupButton.disabled = false;
-    this.updateToggle();
+    // The cached lemma can change which list this word counts as on.
+    applyStatus(w);
+    this.enableButtons();
     this.placePopup();
   }
 
@@ -308,29 +313,49 @@ class Overlay {
       e.name === "NotAllowedError"
         ? "Gemini Nano isn't downloaded yet. Use Prepare models on the settings page."
         : `Couldn't look this word up (${e.message}).`;
-    this.popupButton.disabled = false; // marking still works with the word as written
-    this.updateToggle();
+    this.enableButtons(); // the lists still work with the word as written
     this.placePopup();
   }
 
-  updateToggle() {
+  // Highlights the list the word is on; a common word on neither list gets a note.
+  updateButtons() {
     const word = this.popupWord?.dataset.word;
-    if (word) this.popupButton.textContent = Words.isKnown(word) ? "Mark as unknown" : "Mark as known";
+    if (!word) return;
+    const status = Words.status(word);
+    for (const [list, b] of Object.entries(this.popupButtons)) {
+      b.classList.toggle("on", status === list);
+      b.textContent = list === "known" ? "Known" : "Learning";
+    }
+    this.popupNote.textContent = status === "common" ? "common word" : "";
   }
 
-  async toggleKnown(word) {
-    const button = this.popupButton;
+  enableButtons() {
+    for (const b of Object.values(this.popupButtons)) b.disabled = false;
+    this.updateButtons();
+  }
+
+  // Puts the word on `list`, or takes it off if it's already there.
+  async setList(word, sentence, list) {
+    const buttons = this.popupButtons;
     const info = this.popupInfo;
-    button.disabled = true;
+    for (const b of Object.values(buttons)) b.disabled = true;
     if (info && !info.forms && this.popupForms) {
-      button.textContent = "Saving…";
+      buttons[list].textContent = "Saving…";
       await this.popupForms;
     }
-    if (Words.isKnown(word)) await Words.markUnknown(word, info);
-    else await Words.markKnown(word, info);
-    if (button !== this.popupButton) return; // popup closed meanwhile
+    if (Words.status(word) === list) {
+      await Words.remove(word, info);
+    } else {
+      const video = Recorder.info;
+      await Words.add(list, word, info, {
+        en: info?.meaningInContext || Store.translations.peek(word) || "",
+        ctx: sentence,
+        video: video && { title: video.title, url: video.url },
+      });
+    }
+    if (buttons !== this.popupButtons) return; // popup closed meanwhile
     this.refreshKnown();
-    this.popupButton.disabled = false;
+    this.enableButtons();
   }
 
   placePopup() {
@@ -348,7 +373,7 @@ class Overlay {
   closePopup() {
     if (!this.popupWord) return;
     this.popupWord.classList.remove("active");
-    this.popupWord = this.popupInfo = this.popupButton = this.popupForms = null;
+    this.popupWord = this.popupInfo = this.popupButtons = this.popupNote = this.popupForms = null;
     this.popup.hidden = true;
     if (this.pausedVideo) {
       this.pausedVideo.play().catch(() => {});
@@ -384,6 +409,13 @@ class Overlay {
       onClick().catch((e) => console.warn("[Deutsche Untertitel]", e));
     };
   }
+}
+
+// Learning words are amber; known and common words hide their translation.
+function applyStatus(w) {
+  const status = Words.status(w.dataset.word);
+  w.classList.toggle("learning", status === "learning");
+  w.classList.toggle("known", status === "known" || status === "common");
 }
 
 function setActive(on) {

@@ -68,7 +68,7 @@ const Recorder = {
     this.open = growing;
 
     tokens.slice(seen).forEach((t, i) => {
-      if (t.bracketed || Words.isKnown(t.text)) return;
+      if (t.bracketed || Words.status(t.text)) return;
       const s = sentenceAt(sentences, t.start);
       const pos = this.base + seen + i;
       this.change((rec) => {
@@ -84,7 +84,8 @@ const Recorder = {
 
   // The word popup was opened on this word.
   clicked(word, sentence) {
-    if (!Store.settings.recordWords || !this.key) return;
+    // Words on a list aren't recorded, clicked or not.
+    if (!Store.settings.recordWords || !this.key || Words.status(word)) return;
     const lower = word.toLowerCase();
     this.change((rec) => {
       const e = (rec.words[lower] ||= { w: word, n: 1, o: rec.next++, ctx: sentence });

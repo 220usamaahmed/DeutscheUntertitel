@@ -63,9 +63,11 @@ const CACHE_KEYS = ["cache.translations", "cache.info", "cache.context"];
 
 const Store = {
   settings: structuredClone(DEFAULT_SETTINGS),
-  // Personal known words and exceptions: { lemma: [lemma, ...forms] }, lowercase.
+  // Personal lists, keyed by lowercase lemma:
+  // { forms: [lemma, ...forms], en, added, ctx?, video?: { title, url } }.
+  // Learning wins over Known and the common-word lists (see Words.status).
   known: {},
-  exceptions: {},
+  learning: {},
 
   // Word -> English (Translator API), keyed by the word as written.
   translations: new LruCache("cache.translations", 50000),
@@ -75,10 +77,15 @@ const Store = {
   context: new LruCache("cache.context", 5000),
 
   async load({ caches = false } = {}) {
-    const r = await chrome.storage.local.get(["settings", "known", "exceptions"]);
+    const r = await chrome.storage.local.get(["settings", "known", "learning", "exceptions"]);
     this.settings = mergeSettings(r.settings);
-    this.known = r.known || {};
-    this.exceptions = r.exceptions || {};
+    const { known, learning, changed } = migrateLists(r);
+    this.known = known;
+    this.learning = learning;
+    if (changed) {
+      await chrome.storage.local.set({ known, learning });
+      await chrome.storage.local.remove("exceptions");
+    }
     if (caches) {
       await Promise.all([this.translations.load(), this.info.load(), this.context.load()]);
     }
@@ -90,7 +97,7 @@ const Store = {
   },
 
   saveWords() {
-    return chrome.storage.local.set({ known: this.known, exceptions: this.exceptions });
+    return chrome.storage.local.set({ known: this.known, learning: this.learning });
   },
 
   clearCaches() {
@@ -116,7 +123,7 @@ const Store = {
       if (area !== "local") return;
       if (changes.settings) this.settings = mergeSettings(changes.settings.newValue);
       if (changes.known) this.known = changes.known.newValue || {};
-      if (changes.exceptions) this.exceptions = changes.exceptions.newValue || {};
+      if (changes.learning) this.learning = changes.learning.newValue || {};
       if (changes["cache.translations"] && !changes["cache.translations"].newValue) {
         this.translations.clearMemory();
       }
@@ -128,6 +135,29 @@ const Store = {
     });
   },
 };
+
+// Before 0.4.0 an entry was just its forms, and words marked unknown despite a
+// built-in list were "exceptions". Exceptions become Learning words.
+function migrateLists(r) {
+  let changed = Boolean(r.exceptions);
+  const now = Date.now();
+  const entry = (forms) => ({ forms, en: "", added: now });
+  const upgrade = (list = {}) =>
+    Object.fromEntries(
+      Object.entries(list).map(([lemma, v]) => {
+        if (!Array.isArray(v)) return [lemma, v];
+        changed = true;
+        return [lemma, entry(v)];
+      }),
+    );
+  const known = upgrade(r.known);
+  const learning = upgrade(r.learning);
+  for (const [lemma, forms] of Object.entries(r.exceptions || {})) {
+    delete known[lemma];
+    learning[lemma] ||= entry(forms);
+  }
+  return { known, learning, changed };
+}
 
 function mergeSettings(s = {}) {
   return {

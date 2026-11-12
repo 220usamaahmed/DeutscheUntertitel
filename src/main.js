@@ -86,7 +86,7 @@ const ADAPTERS = [PrimeAdapter, YouTubeAdapter];
       await Words.refresh();
       check();
       overlay.refresh();
-    } else if (keys.includes("known") || keys.includes("exceptions")) {
+    } else if (keys.includes("known") || keys.includes("learning")) {
       Words.refreshPersonal();
       overlay.refreshKnown();
     }

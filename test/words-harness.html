@@ -22,7 +22,10 @@
       first: now - 86400e3, last: now - 86000e3, next: 1,
       words: { verschlossen: { w: "verschlossen", n: 1, o: 0, ctx: "Die Tür war verschlossen." } },
     },
+    // Pre-0.4.0 formats, so the page upgrades them: a known entry as bare forms, and an
+    // exception (a common word marked unknown), which becomes a Learning word.
     known: { haushalt: ["haushalt", "haushalte"] },
+    exceptions: { ging: ["ging"] },
     "cache.translations": { Haushalt: "budget", Schulden: "debts" },
   };
   const listeners = [];
@@ -81,7 +84,10 @@
     for (const s of scripts) {
       await new Promise((resolve) => {
         const el = document.createElement("script");
-        el.src = new URL(s.getAttribute("src"), new URL("../words/", location.href)).href;
+        // Cache-busted, so edits show up on reload.
+        const src = new URL(s.getAttribute("src"), new URL("../words/", location.href));
+        src.searchParams.set("t", Date.now());
+        el.src = src.href;
         el.onload = resolve;
         document.body.append(el);
       });

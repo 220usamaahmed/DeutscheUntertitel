@@ -31,7 +31,7 @@
   const mem = {};
   const listeners = [];
   window.chrome = {
-    runtime: { getURL: (p) => "../" + p, getManifest: () => ({ version: "harness" }) },
+    runtime: { getURL: (p) => `../${p}?t=${Date.now()}`, getManifest: () => ({ version: "harness" }) },
     storage: {
       local: {
         async get(keys) {
@@ -128,13 +128,11 @@
   });
   next();
 </script>
-<script src="../src/store.js"></script>
-<script src="../src/ai.js"></script>
-<script src="../src/words.js"></script>
-<script src="../src/recorder.js"></script>
-<script src="../src/prime.js"></script>
-<script src="../src/youtube.js"></script>
-<script src="../src/overlay.js"></script>
-<script src="../src/main.js"></script>
+<script>
+  // The extension's content scripts in manifest order, cache-busted so edits show up on reload.
+  for (const name of ["store", "ai", "words", "recorder", "prime", "youtube", "overlay", "main"]) {
+    document.write(`<script src="../src/${name}.js?t=${Date.now()}"><\/script>`);
+  }
+</script>
 </body>
 </html>

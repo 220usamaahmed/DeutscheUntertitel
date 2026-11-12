@@ -18,10 +18,6 @@
   button.confirm { border-color: #c4372b; color: #c4372b; }
   a { color: var(--accent); }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: 4px 0; vertical-align: top; border-top: 1px solid color-mix(in srgb, var(--muted) 25%, transparent); }
-  td:last-child { text-align: right; width: 1%; white-space: nowrap; }
-  .forms { color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -46,7 +42,7 @@
 
   <h2>Known-word lists</h2>
   <section>
-    <p class="muted">In single-word mode, words on these lists hide their translation until you hover over them.</p>
+    <p class="muted">Common words: in single-word mode, words on these lists hide their translation until you hover over them, unless they're on your Learning list.</p>
     <label><input type="checkbox" data-list="articles"> Articles (der, die, das, ein…)</label>
     <label><input type="checkbox" data-list="prepositions"> Prepositions (in, mit, auf…)</label>
     <label><input type="checkbox" data-list="pronouns"> Pronouns (ich, du, sie…)</label>
@@ -63,17 +59,14 @@
   <h2>Words from videos</h2>
   <section>
     <label><input type="checkbox" id="recordWords"> Record words from videos</label>
-    <p class="muted">Words that get a translation on screen are kept per video, so you can go through them on the <a href="../words/words.html">words page</a>.</p>
+    <p class="muted">Words that get a translation on screen, and aren't on any list, are kept per video, so you can go through them on the <a href="../words/words.html#videos">words page</a>.</p>
     <button id="delete-videos">Delete all video word records</button> <span id="delete-videos-done" class="muted"></span>
   </section>
 
-  <h2>My known words</h2>
-  <section><table id="known"></table></section>
-
-  <h2>Exceptions</h2>
+  <h2>My words</h2>
   <section>
-    <p class="muted">Words from the lists above that you marked as unknown.</p>
-    <table id="exceptions"></table>
+    <p class="muted">Known words hide their translation like the lists above. Learning words always show it, and are amber in the captions.</p>
+    <p><a href="../words/words.html#learning">Learning words</a> · <a href="../words/words.html#known">Known words</a> · <a href="../words/words.html#videos">Words from videos</a></p>
   </section>
 
   <h2>Cache</h2>

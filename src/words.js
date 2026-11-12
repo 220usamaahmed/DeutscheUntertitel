@@ -1,4 +1,4 @@
-// Tokenising subtitle lines and deciding which words count as known.
+// Tokenising subtitle lines and deciding which list a word is on.
 
 const LIST_FILES = {
   articles: "lists/articles.json",
@@ -9,9 +9,9 @@ const LIST_FILES = {
 
 const Words = {
   segmenter: new Intl.Segmenter("de", { granularity: "word" }),
-  builtIn: new Set(),
-  personal: new Set(),
-  excluded: new Set(),
+  builtIn: new Set(), // common words: the enabled built-in lists
+  knownForms: new Set(),
+  learningForms: new Set(),
   _files: {},
 
   // Rebuild the built-in set from the enabled lists and the personal sets from Store.
@@ -29,8 +29,9 @@ const Words = {
   },
 
   refreshPersonal() {
-    this.personal = new Set(Object.values(Store.known).flat());
-    this.excluded = new Set(Object.values(Store.exceptions).flat());
+    const forms = (list) => new Set(Object.values(list).flatMap((e) => e.forms));
+    this.knownForms = forms(Store.known);
+    this.learningForms = forms(Store.learning);
   },
 
   async _loadList(path) {
@@ -50,34 +51,79 @@ const Words = {
     }));
   },
 
-  isKnown(word) {
+  // "learning" | "known" | "common" | null. Matches the word as written, or its lemma
+  // if a popup lookup cached one. Learning wins, then Known, then the built-in lists.
+  status(word) {
     const w = word.toLowerCase();
     const lemma = Store.info.peek(word)?.lemma?.toLowerCase();
-    if (this.excluded.has(w) || (lemma && this.excluded.has(lemma))) return false;
-    if (this.personal.has(w) || (lemma && this.personal.has(lemma))) return true;
-    return this.builtIn.has(w);
+    const has = (set) => set.has(w) || Boolean(lemma && set.has(lemma));
+    if (has(this.learningForms)) return "learning";
+    if (has(this.knownForms)) return "known";
+    if (this.builtIn.has(w)) return "common";
+    return null;
   },
 
-  // `info` is the Prompt API lookup, or null if it failed.
-  async markKnown(word, info) {
-    const { lemma, forms } = entryFor(word, info);
-    for (const [key, list] of Object.entries(Store.exceptions)) {
-      if (key === lemma || list.includes(word.toLowerCase())) delete Store.exceptions[key];
-    }
-    Store.known[lemma] = forms;
-    await this._save();
-  },
-
-  async markUnknown(word, info) {
-    const { lemma, forms } = entryFor(word, info);
+  // The list entry the word belongs to: { list, lemma }, or null.
+  find(word) {
     const w = word.toLowerCase();
-    for (const [key, list] of Object.entries(Store.known)) {
-      if (key === lemma || list.includes(w)) delete Store.known[key];
+    const lemma = Store.info.peek(word)?.lemma?.toLowerCase();
+    for (const list of ["learning", "known"]) {
+      for (const [key, e] of Object.entries(Store[list])) {
+        if (key === w || key === lemma || e.forms.includes(w)) return { list, lemma: key };
+      }
     }
-    this.refreshPersonal();
-    // Still known through a built-in list: store an exception so it shows again.
-    if (this.isKnown(word)) Store.exceptions[lemma] = forms;
+    return null;
+  },
+
+  // Whether single-word mode hides the word's translation until hover.
+  hides(word) {
+    const s = this.status(word);
+    return s === "known" || s === "common";
+  },
+
+  // Puts the word on "known" or "learning", taking it off the other list.
+  // `info` is the Prompt API lookup (lemma, forms), or null if it failed.
+  // `extra`: { en, ctx, video: { title, url } }; ctx and video are kept for Learning.
+  async add(list, word, info, extra = {}) {
+    const { lemma, forms } = entryFor(word, info);
+    this._drop(word, lemma);
+    const entry = { forms, en: extra.en || "", added: Date.now() };
+    if (list === "learning") {
+      if (extra.ctx) entry.ctx = extra.ctx;
+      if (extra.video?.title) entry.video = { title: extra.video.title, url: extra.video.url || "" };
+    }
+    Store[list][lemma] = entry;
     await this._save();
+  },
+
+  // Takes the word off both lists.
+  async remove(word, info) {
+    this._drop(word, entryFor(word, info).lemma);
+    await this._save();
+  },
+
+  // Moves an entry to the other list as it is, without a new lookup.
+  async move(lemma, to) {
+    const from = to === "known" ? "learning" : "known";
+    const entry = Store[from][lemma];
+    if (!entry) return;
+    delete Store[from][lemma];
+    Store[to][lemma] = { ...entry, added: Date.now() };
+    await this._save();
+  },
+
+  async removeEntry(list, lemma) {
+    delete Store[list][lemma];
+    await this._save();
+  },
+
+  _drop(word, lemma) {
+    const w = word.toLowerCase();
+    for (const list of [Store.known, Store.learning]) {
+      for (const [key, e] of Object.entries(list)) {
+        if (key === lemma || e.forms.includes(w)) delete list[key];
+      }
+    }
   },
 
   async _save() {

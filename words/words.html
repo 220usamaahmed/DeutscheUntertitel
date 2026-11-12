@@ -3,22 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Words from videos</title>
+<title>Words</title>
 <style>
-  :root { --fg: #222; --muted: #666; --bg: #fff; --card: #f5f5f7; --line: #e2e2e8; --accent: #3b6ef5; --danger: #c4372b; --en: #8a5a00; --mark: #fff0b8; }
+  :root { --fg: #222; --muted: #666; --bg: #fff; --card: #f5f5f7; --line: #e2e2e8; --accent: #3b6ef5; --danger: #c4372b; --en: #8a5a00; --mark: #fff0b8; --learn: #a87400; }
   @media (prefers-color-scheme: dark) {
-    :root { --fg: #ececf1; --muted: #9a9aa6; --bg: #17171b; --card: #232329; --line: #34343c; --accent: #8fb0ff; --danger: #ff8a7d; --en: #ffe7a3; --mark: #5a4a12; }
+    :root { --fg: #ececf1; --muted: #9a9aa6; --bg: #17171b; --card: #232329; --line: #34343c; --accent: #8fb0ff; --danger: #ff8a7d; --en: #ffe7a3; --mark: #5a4a12; --learn: #ffd54a; }
   }
   * { box-sizing: border-box; }
   body { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; font: 14px/1.5 system-ui, -apple-system, sans-serif; color: var(--fg); background: var(--bg); }
-  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 16px; }
-  h1 { font-size: 20px; margin: 0; flex: 1; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
   .muted { color: var(--muted); }
-  button, select { font: inherit; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--muted); background: transparent; color: var(--fg); cursor: pointer; }
+  button, select, input[type=search] { font: inherit; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--muted); background: transparent; color: var(--fg); }
+  button { cursor: pointer; }
   button:disabled { opacity: 0.45; cursor: default; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.small { font-size: 12px; padding: 2px 8px; }
+  button.known { border-color: var(--accent); color: var(--accent); }
+  button.learning { border-color: var(--learn); color: var(--learn); }
   button.confirm { border-color: var(--danger); color: var(--danger); }
   a { color: var(--accent); }
+
+  nav { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  nav a { padding: 6px 12px; text-decoration: none; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  nav a.on { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+  nav .count { font-weight: normal; color: var(--muted); font-size: 12px; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+  .toolbar .spacer { flex: 1; }
+  .toolbar input[type=search] { flex: 1 1 200px; max-width: 320px; }
 
   .group { background: var(--card); border-radius: 10px; margin: 0 0 12px; }
   .group > summary { list-style: none; cursor: pointer; padding: 12px 16px; }
@@ -31,35 +41,49 @@
   .actions .spacer { flex: 1; }
 
   .words { list-style: none; margin: 0; padding: 0 16px 12px; }
+  .list { list-style: none; margin: 0; padding: 0 16px; background: var(--card); border-radius: 10px; }
   .row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
-  .row input { margin-top: 4px; }
+  .list .row:first-child { border-top: 0; }
   .row .main { flex: 1; min-width: 0; }
+  .row .buttons { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
   .row .word { font-weight: 600; }
-  .row .lemma { color: var(--muted); }
+  .row.learning .word { color: var(--learn); }
+  .row .lemma, .row .forms, .row .count, .row .clicked, .row .note, .row .added { font-size: 12px; color: var(--muted); }
+  .row .lemma { font-size: inherit; }
   .row .en { color: var(--en); }
-  .row .count, .row .clicked, .row .status { font-size: 12px; color: var(--muted); }
   .row .clicked { border: 1px solid var(--muted); border-radius: 4px; padding: 0 4px; }
-  .row .ctx { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .row .ctx, .row .video { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
   .row .ctx mark { background: var(--mark); color: inherit; border-radius: 2px; }
-  .row.known { opacity: 0.5; }
-  .row.known .main { padding-left: 23px; }
-  .row.saving .status::after { content: "Saving…"; }
-  .known-head { font-size: 12px; color: var(--muted); padding: 10px 0 2px; border-top: 1px solid var(--line); }
+  .row.handled .main { opacity: 0.6; }
+  .row.saving .note::after { content: "Saving…"; }
+  .heading { font-size: 12px; color: var(--muted); padding: 10px 0 2px; border-top: 1px solid var(--line); }
   .empty { padding: 24px 16px; }
 </style>
 </head>
 <body>
-  <header>
-    <h1>Words from videos</h1>
-    <label class="muted">Order
-      <select id="sort">
-        <option value="order">Order of appearance</option>
-        <option value="frequent">Most frequent</option>
-      </select>
-    </label>
-  </header>
-  <p class="muted">Words that got a translation on screen, by video. Words you already know are greyed out at the bottom.</p>
-  <main id="groups"></main>
+  <h1>Words</h1>
+  <nav>
+    <a href="#videos" data-tab="videos">Videos <span class="count" id="count-videos"></span></a>
+    <a href="#learning" data-tab="learning">Learning <span class="count" id="count-learning"></span></a>
+    <a href="#known" data-tab="known">Known <span class="count" id="count-known"></span></a>
+  </nav>
+
+  <section id="view-videos" hidden>
+    <div class="toolbar">
+      <span class="muted">Words that got a translation on screen, by video.</span>
+      <span class="spacer"></span>
+      <label class="muted">Order
+        <select id="sort">
+          <option value="order">Order of appearance</option>
+          <option value="frequent">Most frequent</option>
+        </select>
+      </label>
+    </div>
+    <main id="groups"></main>
+  </section>
+
+  <section id="view-learning" hidden></section>
+  <section id="view-known" hidden></section>
 
   <script src="../src/store.js"></script>
   <script src="../src/ai.js"></script>

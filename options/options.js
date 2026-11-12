@@ -49,12 +49,6 @@ const $ = (id) => document.getElementById(id);
   $("topN").value = String(s.topN);
   $("topN").addEventListener("change", (e) => Store.saveSettings({ topN: Number(e.target.value) }));
 
-  // Known words and exceptions
-  renderWords();
-  Store.watch((keys) => {
-    if (keys.includes("known") || keys.includes("exceptions")) renderWords();
-  });
-
   // Cache
   $("clear").addEventListener("click", async () => {
     await Store.clearCaches();
@@ -65,41 +59,6 @@ const $ = (id) => document.getElementById(id);
   $("prepare").addEventListener("click", prepareModels);
   showModelStatus();
 })();
-
-function renderWords() {
-  fillTable($("known"), Store.known, "No known words yet. Mark words in the word popup.");
-  fillTable($("exceptions"), Store.exceptions, "No exceptions.");
-}
-
-function fillTable(table, entries, emptyText) {
-  table.replaceChildren();
-  const keys = Object.keys(entries).sort((a, b) => a.localeCompare(b, "de"));
-  if (!keys.length) {
-    const td = table.insertRow().insertCell();
-    td.className = "muted";
-    td.textContent = emptyText;
-    return;
-  }
-  for (const lemma of keys) {
-    const row = table.insertRow();
-    const word = row.insertCell();
-    word.append(lemma);
-    const forms = entries[lemma].filter((f) => f !== lemma);
-    if (forms.length) {
-      const span = document.createElement("div");
-      span.className = "forms";
-      span.textContent = forms.join(", ");
-      word.append(span);
-    }
-    const remove = document.createElement("button");
-    remove.textContent = "Remove";
-    remove.addEventListener("click", () => {
-      delete entries[lemma];
-      Store.saveWords();
-    });
-    row.insertCell().append(remove);
-  }
-}
 
 async function showModelStatus() {
   $("translator-status").textContent = AI.hasTranslator()
