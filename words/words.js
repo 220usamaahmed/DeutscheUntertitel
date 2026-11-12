@@ -242,8 +242,10 @@ function buildVideoRow(key, e) {
   main.append(head, context(e.ctx, [e.w]));
 
   const buttons = el("div", "buttons");
-  const known = () => button("Known", "known", () => assign(key, e.lower, "known"), "known", "check");
-  const learning = () => button("Learning", "learning", () => assign(key, e.lower, "learning"), "learning", "book");
+  // data-hint is the key shown on the button while the row is selected.
+  const hinted = (b, hint) => ((b.dataset.hint = hint), b);
+  const known = () => hinted(button("Known", "known", () => assign(key, e.lower, "known"), "known", "check"), "1");
+  const learning = () => hinted(button("Learning", "learning", () => assign(key, e.lower, "learning"), "learning", "book"), "2");
   if (e.status === "new") {
     buttons.append(known(), learning());
   } else if (e.status === "common") {
@@ -251,14 +253,14 @@ function buildVideoRow(key, e) {
   } else {
     const other = e.status === "known" ? "learning" : "known";
     buttons.append(
-      button(LIST_LABEL[other], other, () => {
+      hinted(button(LIST_LABEL[other], other, () => {
         const found = Words.find(e.w);
         if (found) arriveThen([e.lower, found.lemma.toLowerCase()], () => Words.move(found.lemma, other));
-      }, other, other === "known" ? "check" : "book"),
+      }, other, other === "known" ? "check" : "book"), other === "known" ? "1" : "2"),
     );
   }
   // Takes the word out of this video's list only; a word already on a list stays there.
-  buttons.append(iconButton("Remove from this video", () => assign(key, e.lower, "remove"), "remove"));
+  buttons.append(hinted(iconButton("Remove from this video", () => assign(key, e.lower, "remove"), "remove"), "3"));
   li.append(main, buttons);
   return li;
 }
