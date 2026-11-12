@@ -94,10 +94,10 @@ const ADAPTERS = [PrimeAdapter, YouTubeAdapter];
 
   // Warm up the models, so the first caption and first popup don't wait for them.
   try {
-    if (AI.hasTranslator() && (await AI.translatorAvailability()) === "available") {
+    if (AI.hasTranslator() && ["available", "downloading"].includes(await AI.translatorAvailability())) {
       await AI.translator();
     }
-    if (AI.hasPrompt() && (await AI.promptAvailability()) === "available") {
+    if (AI.hasPrompt() && ["available", "downloading"].includes(await AI.promptAvailability())) {
       await Promise.all([AI.session("lookup"), AI.session("forms")]);
     }
   } catch (e) {

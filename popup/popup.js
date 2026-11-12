@@ -99,8 +99,18 @@ function setStatus(id, text) {
 }
 
 async function showModelStatus() {
-  setStatus("translator-status", AI.hasTranslator() ? await AI.translatorAvailability() : "unsupported");
-  setStatus("prompt-status", AI.hasPrompt() ? await AI.promptAvailability() : "unsupported");
+  const t = AI.hasTranslator() ? await AI.translatorAvailability() : "unsupported";
+  const p = AI.hasPrompt() ? await AI.promptAvailability() : "unsupported";
+  setStatus("translator-status", t);
+  setStatus("prompt-status", p);
+  // Only worth offering while a download is still needed.
+  const needed = [t, p].some((s) => s === "downloadable" || s === "downloading");
+  $("prepare").hidden = !needed;
+  $("models-hint").textContent = needed
+    ? "Both run on this Mac, downloaded once."
+    : t === "available" && p === "available"
+      ? "Both models are ready."
+      : "Models this Chrome can't run are marked unsupported.";
 }
 
 // Creating each API once from a click starts the model downloads.

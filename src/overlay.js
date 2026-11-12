@@ -218,6 +218,7 @@ class Overlay {
     const sentence = this.text.replace(/\n/g, " ");
     this.popupWord = w;
     this.popupInfo = null;
+    this.lookupFailed = false;
     w.classList.add("active");
     Recorder.clicked(word, sentence);
 
@@ -317,10 +318,12 @@ class Overlay {
   showLookupError(w, e) {
     if (this.popupWord !== w) return;
     console.warn("[Deutsche Untertitel] lookup failed", e);
+    this.lookupFailed = true;
     this.popupBody.textContent =
       e.name === "NotAllowedError"
         ? "Gemini Nano isn't downloaded yet. Use Prepare in the toolbar popup."
         : `Couldn't look this word up (${e.message}).`;
+    this.updateButtons();
     this.placePopup();
   }
 
@@ -333,7 +336,8 @@ class Overlay {
       b.classList.toggle("on", status === list);
       b.textContent = list === "known" ? "Known" : "Learning";
     }
-    this.popupNote.textContent = status === "common" ? "common word" : "";
+    this.popupNote.textContent =
+      status === "common" ? "common word" : this.lookupFailed ? "saves only this exact word" : "";
   }
 
   // Puts the word on `list`, or takes it off if it's already there. Works straight away
@@ -404,6 +408,7 @@ class Overlay {
       this.showNotice(`Click to enable ${what}`, () => AI.translator().then(() => this.refresh()));
     } else {
       console.warn("[Deutsche Untertitel]", e);
+      this.showNotice(`Couldn't translate: ${e.message}`, async () => {});
     }
   }
 
