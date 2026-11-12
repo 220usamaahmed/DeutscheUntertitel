@@ -319,7 +319,7 @@ class Overlay {
     console.warn("[Deutsche Untertitel] lookup failed", e);
     this.popupBody.textContent =
       e.name === "NotAllowedError"
-        ? "Gemini Nano isn't downloaded yet. Use Prepare models on the settings page."
+        ? "Gemini Nano isn't downloaded yet. Use Prepare in the toolbar popup."
         : `Couldn't look this word up (${e.message}).`;
     this.placePopup();
   }

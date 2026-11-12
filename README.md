@@ -35,8 +35,8 @@ Open **Words** from the toolbar popup. The **Videos** tab lists each video's wor
 switched or removed. **Mark the rest as known** handles everything still new.
 **Delete video** removes a video's record; words already on a list stay there. The
 **Learning** and **Known** tabs list your words with their meaning and forms, with
-search, sorting, and buttons to move or remove them. Recording can be turned off on
-the settings page.
+search, sorting, and buttons to move or remove them. Recording can be turned off in the
+popup's settings.
 
 **Practice** (a button on the Learning tab) shows your Learning words as cards, one at
 a time: the German word first, then Space or a click for its meaning, forms, sentence
@@ -54,7 +54,7 @@ move to the episode's group once its title shows.
 
 1. Open `chrome://extensions` and turn on **Developer mode**.
 2. Click **Load unpacked** and pick this folder.
-3. Open the extension's settings page and click **Prepare models** once, so Chrome
+3. Open the toolbar popup and click **Prepare** once, so Chrome
    downloads the translation and Gemini Nano models.
 
 After changing code, click the reload icon on the extension's card and reload the
@@ -74,9 +74,8 @@ video tab. The page's `<html data-dtu="ready 0.4.2">` shows which version is run
 | `src/overlay.js` | Caption overlay and word popup |
 | `src/main.js` | Wires the adapter, overlay and settings together |
 | `lists/` | Built-in word lists |
-| `popup/` | Toolbar popup: on/off and mode |
+| `popup/` | Toolbar popup: on/off, mode, models and a settings view |
 | `words/` | Words page: recorded words by video |
-| `options/` | Settings page |
 | `test/harness.html` | Fake Prime player for working on the overlay without Prime |
 | `test/words-harness.html` | Words page with fake records and stubbed extension APIs |
 

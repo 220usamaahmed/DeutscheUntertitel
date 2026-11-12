@@ -2,29 +2,136 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<style>
-  body { width: 240px; margin: 0; padding: 12px 14px; font: 13px/1.5 system-ui, -apple-system, sans-serif; color: #222; }
-  h1 { font-size: 14px; margin: 0 0 10px; }
-  label { display: block; margin: 4px 0; cursor: pointer; }
-  fieldset { border: 0; padding: 0; margin: 10px 0; }
-  legend { font-weight: 600; padding: 0; margin-bottom: 2px; }
-  a { color: #3b6ef5; }
-  @media (prefers-color-scheme: dark) {
-    body { background: #1f1f24; color: #ececf1; }
-    a { color: #8fb0ff; }
-  }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deutsche Untertitel</title>
+<link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <h1>Deutsche Untertitel</h1>
-  <label><input type="checkbox" id="enabled"> On</label>
-  <fieldset>
-    <legend>Mode</legend>
-    <label><input type="radio" name="mode" value="sentence"> Full sentence</label>
-    <label><input type="radio" name="mode" value="word"> Single word</label>
-  </fieldset>
-  <a href="#" id="words">Words</a> · <a href="#" id="settings">Settings</a>
+  <!-- Main view -->
+  <main id="view-main">
+    <header>
+      <div class="brand">
+        <h1>Deutsche Untertitel</h1>
+        <p>German subtitles, translated on-device</p>
+      </div>
+      <button class="icon ghost" id="open-settings" aria-label="Settings" title="Settings">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </header>
+
+    <section class="card">
+      <label class="row switch-row" for="enabled">
+        <span class="grow">
+          <span class="label">Show translations</span>
+          <span class="hint" id="enabled-hint"></span>
+        </span>
+        <input type="checkbox" role="switch" id="enabled" class="switch">
+      </label>
+    </section>
+
+    <section>
+      <h2>Mode</h2>
+      <div class="tabs" role="radiogroup" aria-label="Mode">
+        <label><input type="radio" name="mode" value="sentence"><span>Full sentence</span></label>
+        <label><input type="radio" name="mode" value="word"><span>Single word</span></label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Models</h2>
+      <div class="card">
+        <div class="row">
+          <span class="grow">Translator</span>
+          <span class="badge" id="translator-status">checking…</span>
+        </div>
+        <div class="row">
+          <span class="grow">Gemini Nano</span>
+          <span class="badge" id="prompt-status">checking…</span>
+        </div>
+        <div class="row actions">
+          <span class="hint grow">Both run on this Mac, downloaded once.</span>
+          <button class="primary sm" id="prepare">Prepare</button>
+        </div>
+      </div>
+    </section>
+
+    <a class="btn wide" href="#" id="words">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+      Open my words
+      <svg class="icon end" viewBox="0 0 24 24"><path d="M7 7h10v10M7 17 17 7"/></svg>
+    </a>
+  </main>
+
+  <!-- Settings view -->
+  <main id="view-settings" hidden>
+    <header>
+      <button class="icon ghost" id="back" aria-label="Back" title="Back">
+        <svg class="icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <div class="brand"><h1>Settings</h1></div>
+    </header>
+
+    <section>
+      <h2>Display</h2>
+      <div class="card">
+        <label class="row switch-row" for="pauseOnPopup">
+          <span class="grow">Pause the video while the word popup is open</span>
+          <input type="checkbox" role="switch" id="pauseOnPopup" class="switch">
+        </label>
+        <div class="row stack">
+          <div class="between"><span>Caption size</span><span class="badge" id="fontScale-value"></span></div>
+          <input type="range" id="fontScale" min="0.6" max="1.6" step="0.1">
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Known-word lists</h2>
+      <div class="card">
+        <p class="hint pad">In single-word mode, words on these lists hide their translation until you hover, unless they're on your Learning list.</p>
+        <label class="row switch-row"><span class="grow">Articles <span class="hint">der, die, das…</span></span><input type="checkbox" role="switch" class="switch" data-list="articles"></label>
+        <label class="row switch-row"><span class="grow">Prepositions <span class="hint">in, mit, auf…</span></span><input type="checkbox" role="switch" class="switch" data-list="prepositions"></label>
+        <label class="row switch-row"><span class="grow">Pronouns <span class="hint">ich, du, sie…</span></span><input type="checkbox" role="switch" class="switch" data-list="pronouns"></label>
+        <div class="row">
+          <span class="grow">Most common</span>
+          <select id="topN" aria-label="How many common words">
+            <option value="100">Top 100</option>
+            <option value="500">Top 500</option>
+            <option value="1000">Top 1000</option>
+            <option value="2000">Top 2000</option>
+          </select>
+          <input type="checkbox" role="switch" class="switch" data-list="top" aria-label="Most common words">
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Words from videos</h2>
+      <div class="card">
+        <label class="row switch-row" for="recordWords">
+          <span class="grow">Record words from videos<span class="hint block">Kept per video, so you can go through them on the words page.</span></span>
+          <input type="checkbox" role="switch" id="recordWords" class="switch">
+        </label>
+        <div class="row actions">
+          <span class="hint grow" id="delete-videos-done"></span>
+          <button class="ghost danger sm" id="delete-videos">Delete all records</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Cache</h2>
+      <div class="card">
+        <div class="row actions">
+          <span class="hint grow" id="clear-done">Stored translations and word lookups.</span>
+          <button class="sm" id="clear">Clear</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
   <script src="../src/store.js"></script>
+  <script src="../src/ai.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

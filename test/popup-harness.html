@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Popup harness</title></head>
+<body style="margin:0">
+<script>
+  // Runs popup/popup.html with stubbed extension APIs.
+  // Open as http://localhost:8765/test/popup-harness.html
+  const mem = {};
+  window.chrome = {
+    runtime: { getURL: (p) => "../" + p },
+    tabs: { create: (o) => console.log("tab", o) },
+    storage: {
+      local: {
+        async get(keys) { const ks = typeof keys === "string" ? [keys] : keys; return Object.fromEntries(ks.filter((k) => k in mem).map((k) => [k, structuredClone(mem[k])])); },
+        async getKeys() { return Object.keys(mem); },
+        async set(obj) { Object.assign(mem, structuredClone(obj)); },
+        async remove(keys) { for (const k of [].concat(keys)) delete mem[k]; },
+      },
+      onChanged: { addListener() {} },
+    },
+  };
+  self.Translator = { availability: async () => "available", create: async () => ({}) };
+  self.LanguageModel = { availability: async () => "downloadable", create: async () => ({ clone: async () => ({}) }) };
+  (async () => {
+    const html = await (await fetch("../popup/popup.html")).text();
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const link = document.createElement("link"); link.rel = "stylesheet"; link.href = "../popup/popup.css"; document.head.append(link);
+    const scripts = [...doc.body.querySelectorAll("script")]; scripts.forEach((s) => s.remove());
+    const wrap = document.createElement("div"); wrap.append(...doc.body.childNodes);
+    document.body.append(wrap);
+    // Same width as the real popup.
+    for (const s of scripts) await new Promise((r) => { const el = document.createElement("script"); el.src = s.getAttribute("src").replace(/^\.\.\//, "../").replace(/^popup\.js$/, "../popup/popup.js"); el.onload = r; document.body.append(el); });
+  })();
+</script>
+</body>
+</html>

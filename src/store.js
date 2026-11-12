@@ -1,5 +1,5 @@
 // Settings, known-word lists and caches, all kept in chrome.storage.local.
-// Shared by the content scripts, the toolbar popup and the settings page.
+// Shared by the content scripts, the toolbar popup.
 
 const DEFAULT_SETTINGS = {
   enabled: true,

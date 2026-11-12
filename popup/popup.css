@@ -1,0 +1,100 @@
+/* shadcn/ui (zinc, new-york) tokens and recipes in plain CSS, as on the words page:
+   the extension has no build step. Switch, Tabs, Card, Badge, Button, Select, Slider. */
+:root {
+  --background: hsl(0 0% 100%); --foreground: hsl(240 10% 3.9%);
+  --card: hsl(0 0% 100%); --muted: hsl(240 4.8% 95.9%); --muted-foreground: hsl(240 3.8% 46.1%);
+  --border: hsl(240 5.9% 90%); --input: hsl(240 5.9% 90%); --ring: hsl(240 5.9% 10%);
+  --primary: hsl(240 5.9% 10%); --primary-foreground: hsl(0 0% 98%);
+  --accent: hsl(240 4.8% 95.9%); --destructive: hsl(0 72% 51%);
+  --known: hsl(160 84% 25%); --known-bg: hsl(160 84% 39% / 0.1); --known-border: hsl(160 84% 39% / 0.35);
+  --learning: hsl(32 95% 34%); --learning-bg: hsl(38 92% 50% / 0.14); --learning-border: hsl(38 92% 50% / 0.45);
+  --radius: 0.5rem;
+  --shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: hsl(240 10% 3.9%); --foreground: hsl(0 0% 98%);
+    --card: hsl(240 10% 5.5%); --muted: hsl(240 3.7% 15.9%); --muted-foreground: hsl(240 5% 64.9%);
+    --border: hsl(240 3.7% 15.9%); --input: hsl(240 3.7% 20%); --ring: hsl(240 4.9% 83.9%);
+    --primary: hsl(0 0% 98%); --primary-foreground: hsl(240 5.9% 10%);
+    --accent: hsl(240 3.7% 15.9%); --destructive: hsl(0 72% 60%);
+    --known: hsl(160 70% 60%); --known-bg: hsl(160 84% 39% / 0.14); --known-border: hsl(160 84% 39% / 0.4);
+    --learning: hsl(43 96% 62%); --learning-bg: hsl(38 92% 50% / 0.14); --learning-border: hsl(38 92% 50% / 0.4);
+    --shadow: none;
+  }
+}
+* { box-sizing: border-box; border-color: var(--border); }
+[hidden] { display: none !important; }
+body { width: 340px; margin: 0; font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--foreground); background: var(--background); -webkit-font-smoothing: antialiased; }
+main { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
+svg.icon { width: 14px; height: 14px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+a { color: inherit; }
+
+header { display: flex; align-items: center; gap: 8px; }
+.brand { flex: 1; min-width: 0; }
+h1 { font-size: 16px; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+.brand p { margin: 2px 0 0; font-size: 12px; color: var(--muted-foreground); }
+h2 { margin: 0 0 6px; font-size: 11px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-foreground); }
+section { margin: 0; }
+
+/* Button */
+button, .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; font: inherit; font-size: 13px; font-weight: 500; height: 32px; padding: 0 12px; border-radius: calc(var(--radius) - 2px); border: 1px solid var(--input); background: var(--background); color: var(--foreground); box-shadow: var(--shadow); cursor: pointer; text-decoration: none; transition: background-color .15s, color .15s, border-color .15s, transform .1s; }
+button:hover:not(:disabled), .btn:hover { background: var(--accent); }
+button:active:not(:disabled) { transform: scale(0.97); }
+button:focus-visible, .btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+button:disabled { opacity: 0.5; pointer-events: none; }
+button.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+button.icon { width: 32px; padding: 0; }
+button.ghost { background: transparent; box-shadow: none; border-color: transparent; color: var(--muted-foreground); }
+button.ghost:hover:not(:disabled) { background: var(--accent); color: var(--foreground); }
+button.sm.ghost { border-color: var(--input); }
+button.primary { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+button.primary:hover:not(:disabled) { background: var(--primary); filter: brightness(1.15); }
+button.ghost.danger:hover:not(:disabled):not(.confirm) { color: var(--destructive); border-color: var(--destructive); background: color-mix(in srgb, var(--destructive) 10%, transparent); }
+button.confirm { background: var(--destructive); border-color: var(--destructive); color: #fff; }
+.btn.wide { width: 100%; justify-content: flex-start; height: 36px; }
+.btn .end { margin-left: auto; color: var(--muted-foreground); }
+
+/* Card + rows */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px); box-shadow: var(--shadow); overflow: clip; }
+.row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--border); min-height: 44px; }
+.card > :first-child { border-top: 0; }
+.row.stack { flex-direction: column; align-items: stretch; gap: 10px; }
+.row.actions { background: color-mix(in srgb, var(--muted) 45%, transparent); }
+.row.flush, .flush { padding: 0; border: 0; min-height: 0; background: none; }
+.grow { flex: 1; min-width: 0; }
+.between { display: flex; justify-content: space-between; align-items: center; }
+.label { display: block; font-weight: 500; }
+.hint { display: block; font-size: 12px; color: var(--muted-foreground); }
+span.hint:not(.block):not(.grow) { display: inline; }
+.hint.block { display: block; }
+.hint.pad { padding: 10px 12px 12px; margin: 0; }
+.switch-row { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+
+/* Badge */
+.badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 9999px; font-size: 11px; font-weight: 500; line-height: 1; border: 1px solid transparent; background: var(--muted); color: var(--muted-foreground); }
+.badge.known { background: var(--known-bg); border-color: var(--known-border); color: var(--known); }
+.badge.learning { background: var(--learning-bg); border-color: var(--learning-border); color: var(--learning); }
+
+/* Switch */
+input.switch { appearance: none; -webkit-appearance: none; flex-shrink: 0; position: relative; width: 36px; height: 20px; margin: 0; border-radius: 9999px; background: var(--input); border: 2px solid transparent; cursor: pointer; transition: background-color .15s; }
+input.switch::after { content: ""; position: absolute; top: 0; left: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--background); box-shadow: 0 1px 3px rgb(0 0 0 / 0.25); transition: transform .15s; }
+input.switch:checked { background: var(--primary); }
+input.switch:checked::after { transform: translateX(16px); }
+
+/* Tabs (segmented control for Mode) */
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 4px; border-radius: calc(var(--radius) + 2px); background: var(--muted); }
+.tabs label { cursor: pointer; }
+.tabs input { position: absolute; opacity: 0; pointer-events: none; }
+.tabs span { display: flex; align-items: center; justify-content: center; height: 30px; border-radius: calc(var(--radius) - 1px); font-weight: 500; color: var(--muted-foreground); transition: background-color .15s, color .15s, box-shadow .15s; }
+.tabs label:hover span { color: var(--foreground); }
+.tabs input:checked + span { background: var(--background); color: var(--foreground); box-shadow: 0 1px 3px rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); }
+.tabs input:focus-visible + span { outline: 2px solid var(--ring); outline-offset: 1px; }
+
+/* Select */
+select { font: inherit; font-size: 12px; height: 28px; padding: 0 28px 0 10px; border-radius: calc(var(--radius) - 2px); border: 1px solid var(--input); background: var(--background) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 8px center / 12px; color: var(--foreground); box-shadow: var(--shadow); appearance: none; -webkit-appearance: none; cursor: pointer; }
+
+/* Slider (range input styled like shadcn's) */
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 16px; margin: 0; background: transparent; cursor: pointer; }
+input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 9999px; background: linear-gradient(to right, var(--primary) var(--fill, 50%), var(--muted) var(--fill, 50%)); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -5px; border-radius: 50%; background: var(--background); border: 2px solid var(--primary); box-shadow: var(--shadow); }
