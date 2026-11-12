@@ -221,6 +221,7 @@ class Overlay {
     this.popupWord = w;
     this.popupInfo = null;
     w.classList.add("active");
+    Recorder.clicked(word, sentence);
 
     const video = this.site.video(this.container);
     if (Store.settings.pauseOnPopup && video && !video.paused) {

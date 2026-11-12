@@ -15,6 +15,8 @@
   label { display: block; margin: 6px 0; }
   .muted { color: var(--muted); }
   button { font: inherit; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--muted); background: transparent; color: var(--fg); cursor: pointer; }
+  button.confirm { border-color: #c4372b; color: #c4372b; }
+  a { color: var(--accent); }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   table { width: 100%; border-collapse: collapse; }
   td { padding: 4px 0; vertical-align: top; border-top: 1px solid color-mix(in srgb, var(--muted) 25%, transparent); }
@@ -56,6 +58,13 @@
         <option value="2000">top 2000</option>
       </select>
     </label>
+  </section>
+
+  <h2>Words from videos</h2>
+  <section>
+    <label><input type="checkbox" id="recordWords"> Record words from videos</label>
+    <p class="muted">Words that get a translation on screen are kept per video, so you can go through them on the <a href="../words/words.html">words page</a>.</p>
+    <button id="delete-videos">Delete all video word records</button> <span id="delete-videos-done" class="muted"></span>
   </section>
 
   <h2>My known words</h2>

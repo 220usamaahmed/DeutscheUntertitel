@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Deutsche Untertitel",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shows English translations of German subtitles on Prime Video and YouTube, fully on-device.",
   "permissions": [
-    "storage"
+    "storage",
+    "unlimitedStorage"
   ],
   "action": {
     "default_title": "Deutsche Untertitel",
@@ -24,6 +25,7 @@
         "src/store.js",
         "src/ai.js",
         "src/words.js",
+        "src/recorder.js",
         "src/prime.js",
         "src/youtube.js",
         "src/overlay.js",

@@ -8,7 +8,11 @@ const DEFAULT_SETTINGS = {
   topN: 500, // 100 | 500 | 1000 | 2000
   fontScale: 1,
   pauseOnPopup: true,
+  recordWords: true,
 };
+
+// Storage keys of the per-video word records start with this (see recorder.js).
+const VIDEO_PREFIX = "video:";
 
 // Map-backed cache that drops the least recently used entries past `cap`.
 // Writes to storage are debounced; reads only reorder in memory.
@@ -92,6 +96,17 @@ const Store = {
   clearCaches() {
     for (const c of [this.translations, this.info, this.context]) c.clearMemory();
     return chrome.storage.local.remove(CACHE_KEYS);
+  },
+
+  // { storageKey: record } for every video with recorded words.
+  async loadVideos() {
+    const keys = (await chrome.storage.local.getKeys()).filter((k) => k.startsWith(VIDEO_PREFIX));
+    return keys.length ? chrome.storage.local.get(keys) : {};
+  },
+
+  async deleteAllVideos() {
+    const keys = (await chrome.storage.local.getKeys()).filter((k) => k.startsWith(VIDEO_PREFIX));
+    return chrome.storage.local.remove(keys);
   },
 
   // Keeps this copy in sync with changes made elsewhere (popup, settings, other tabs).

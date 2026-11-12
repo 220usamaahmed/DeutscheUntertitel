@@ -14,6 +14,31 @@ const $ = (id) => document.getElementById(id);
   });
   showScale();
 
+  // Words from videos
+  $("recordWords").checked = s.recordWords;
+  $("recordWords").addEventListener("change", (e) => Store.saveSettings({ recordWords: e.target.checked }));
+  const del = $("delete-videos");
+  let delTimer = null;
+  del.addEventListener("click", async () => {
+    // Two clicks: the first asks.
+    if (!del.classList.contains("confirm")) {
+      const n = Object.keys(await Store.loadVideos()).length;
+      if (!n) return ($("delete-videos-done").textContent = "There are none.");
+      del.classList.add("confirm");
+      del.textContent = `Delete records of ${n} video${n === 1 ? "" : "s"}?`;
+      delTimer = setTimeout(() => {
+        del.classList.remove("confirm");
+        del.textContent = "Delete all video word records";
+      }, 4000);
+      return;
+    }
+    clearTimeout(delTimer);
+    await Store.deleteAllVideos();
+    del.classList.remove("confirm");
+    del.textContent = "Delete all video word records";
+    $("delete-videos-done").textContent = "Deleted.";
+  });
+
   // Lists
   for (const box of document.querySelectorAll("[data-list]")) {
     box.checked = s.lists[box.dataset.list];

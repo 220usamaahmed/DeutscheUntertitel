@@ -46,4 +46,19 @@ const PrimeAdapter = {
   video(container) {
     return (container.closest("#dv-web-player") || document).querySelector("video");
   },
+
+  // Groups recorded words by video: the title, plus the episode line for series
+  // ("Season 1, Ep. 3 …"), both shown in the player's top bar.
+  videoInfo() {
+    const text = (sel) => document.querySelector(sel)?.textContent.replace(/\s+/g, " ").trim() || "";
+    const title = text(".atvwebplayersdk-title-text");
+    const episode = text(".atvwebplayersdk-subtitle-text");
+    const url = location.origin + location.pathname;
+    if (!title) {
+      // No title found: one group per day rather than none.
+      const day = new Date().toISOString().slice(0, 10);
+      return { id: `untitled-${day}`, title: `Prime Video, ${day}`, url };
+    }
+    return { id: episode ? `${title} | ${episode}` : title, title: episode ? `${title} · ${episode}` : title, url };
+  },
 };

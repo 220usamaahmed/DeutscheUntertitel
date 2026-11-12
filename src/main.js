@@ -13,6 +13,7 @@ const ADAPTERS = [PrimeAdapter, YouTubeAdapter];
   await Store.load({ caches: true });
   await Words.refresh();
   const overlay = new Overlay(site);
+  Recorder.init();
 
   let container = null;
   let observer = null;
@@ -23,6 +24,11 @@ const ADAPTERS = [PrimeAdapter, YouTubeAdapter];
     const text = site.readText(container);
     if (text === lastText) return overlay.place(); // same line, but it may have moved
     lastText = text;
+    try {
+      Recorder.caption(site, container, text);
+    } catch (e) {
+      console.warn("[Deutsche Untertitel] recording words failed", e);
+    }
     overlay.render(text);
   }
 
@@ -40,6 +46,7 @@ const ADAPTERS = [PrimeAdapter, YouTubeAdapter];
     observer?.disconnect();
     observer = container = lastText = null;
     overlay.detach();
+    Recorder.reset();
   }
 
   // The player opens and closes without page loads, so look for its captions every second.

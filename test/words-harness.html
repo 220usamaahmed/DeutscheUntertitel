@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Words page harness</title></head>
+<body>
+<script>
+  // Runs words/words.html with stubbed extension APIs and two fake video records.
+  // Open as http://localhost:8765/test/words-harness.html
+  const now = Date.now();
+  const mem = {
+    "video:youtube:abc": {
+      site: "youtube", id: "abc", title: "Staatsschulden steigen", url: "https://www.youtube.com/watch?v=abc",
+      first: now - 3600e3, last: now - 60e3, next: 4,
+      words: {
+        finanzdisziplin: { w: "Finanzdisziplin", n: 3, o: 0, ctx: "Aber Finanzdisziplin hilft immer.", c: 1 },
+        haushalt: { w: "Haushalt", n: 5, o: 1, ctx: "Der Haushalt ist ein Problem." },
+        ging: { w: "ging", n: 1, o: 2, ctx: "Er ging nach Hause." },
+        schulden: { w: "Schulden", n: 2, o: 3, ctx: "Die Schulden steigen." },
+      },
+    },
+    "video:prime:Film | Season 1, Ep. 2": {
+      site: "prime", id: "Film | Season 1, Ep. 2", title: "Film · Season 1, Ep. 2", url: "",
+      first: now - 86400e3, last: now - 86000e3, next: 1,
+      words: { verschlossen: { w: "verschlossen", n: 1, o: 0, ctx: "Die Tür war verschlossen." } },
+    },
+    known: { haushalt: ["haushalt", "haushalte"] },
+    "cache.translations": { Haushalt: "budget", Schulden: "debts" },
+  };
+  const listeners = [];
+  const emit = (changes) => listeners.forEach((l) => l(changes, "local"));
+  window.chrome = {
+    runtime: { getURL: (p) => "../" + p, getManifest: () => ({ version: "harness" }) },
+    storage: {
+      local: {
+        async get(keys) {
+          const ks = typeof keys === "string" ? [keys] : keys;
+          return Object.fromEntries(ks.filter((k) => k in mem).map((k) => [k, structuredClone(mem[k])]));
+        },
+        async getKeys() { return Object.keys(mem); },
+        async set(obj) {
+          const changes = {};
+          for (const [k, v] of Object.entries(obj)) { changes[k] = { oldValue: mem[k], newValue: structuredClone(v) }; mem[k] = structuredClone(v); }
+          emit(changes);
+        },
+        async remove(keys) {
+          const changes = {};
+          for (const k of [].concat(keys)) { changes[k] = { oldValue: mem[k] }; delete mem[k]; }
+          emit(changes);
+        },
+      },
+      onChanged: { addListener: (l) => listeners.push(l) },
+    },
+  };
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  self.Translator = { availability: async () => "available", create: async () => ({ translate: async (t) => (await sleep(30), `EN(${t})`) }) };
+  self.LanguageModel = {
+    availability: async () => "available",
+    create: async () => {
+      const s = {
+        clone: async () => s, destroy() {},
+        prompt: async (p) => {
+          await sleep(400);
+          const m = p.match(/Word: "(.*)"/);
+          if (!m) return JSON.stringify(p.startsWith("gehen") ? ["gehe", "geht", "ging", "gegangen"] : []);
+          const w = m[1];
+          return JSON.stringify({ lemma: w === "ging" ? "gehen" : w.toLowerCase(), partOfSpeech: w === "ging" ? "verb" : "noun", meaningInContext: `m(${w})`, alternatives: [] });
+        },
+      };
+      return s;
+    },
+  };
+
+  // Load the real page: its markup, then its scripts in order.
+  (async () => {
+    const html = await (await fetch("../words/words.html")).text();
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    document.head.append(...doc.head.querySelectorAll("style"));
+    document.title = doc.title;
+    const scripts = [...doc.body.querySelectorAll("script")];
+    scripts.forEach((s) => s.remove());
+    document.body.replaceChildren(...doc.body.childNodes);
+    for (const s of scripts) {
+      await new Promise((resolve) => {
+        const el = document.createElement("script");
+        el.src = new URL(s.getAttribute("src"), new URL("../words/", location.href)).href;
+        el.onload = resolve;
+        document.body.append(el);
+      });
+    }
+  })();
+</script>
+</body>
+</html>

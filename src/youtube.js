@@ -45,4 +45,16 @@ const YouTubeAdapter = {
   video(container) {
     return container.querySelector("video");
   },
+
+  // Groups recorded words by video. The URL changes as soon as a new video opens; the
+  // page title can lag behind, so the recorder refreshes it on every save.
+  videoInfo() {
+    const url = new URL(location.href);
+    const id =
+      (url.pathname === "/watch" && url.searchParams.get("v")) ||
+      url.pathname.match(/^\/(?:shorts|live)\/([\w-]+)/)?.[1];
+    if (!id) return null;
+    const title = document.title.replace(/^\(\d+\)\s*/, "").replace(/\s+-\s+YouTube$/, "").trim();
+    return { id, title: title || "YouTube video", url: `https://www.youtube.com/watch?v=${id}` };
+  },
 };
