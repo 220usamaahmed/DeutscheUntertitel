@@ -47,6 +47,7 @@ const ADAPTERS = [PrimeAdapter, YouTubeAdapter];
     observer = container = lastText = null;
     overlay.detach();
     Recorder.reset();
+    site.forgetVideo?.();
   }
 
   // The player opens and closes without page loads, so look for its captions every second.

@@ -47,18 +47,43 @@ const PrimeAdapter = {
     return (container.closest("#dv-web-player") || document).querySelector("video");
   },
 
+  // The player closed: the next video starts without a title.
+  forgetVideo() {
+    this._seen = this._provisional = null;
+  },
+
   // Groups recorded words by video: the title, plus the episode line for series
-  // ("Season 1, Ep. 3 …"), both shown in the player's top bar.
-  videoInfo() {
+  // ("S1 E1 Pilot"). Prime only renders them while its controls show, so the last
+  // reading is kept until the video's length changes (a new episode). Before the first
+  // reading, the group is provisional, named after the page title ("The Rookie -
+  // Season 1"); the recorder moves its words over once the real title shows up.
+  videoInfo(container) {
     const text = (sel) => document.querySelector(sel)?.textContent.replace(/\s+/g, " ").trim() || "";
+    const duration = Math.round(this.video(container)?.duration || 0);
+    // The length is 0 until the video's metadata loads; only a change between two
+    // real lengths means a new video.
+    const changed = (v) => v?.duration && duration && Math.abs(v.duration - duration) > 1;
+    if (changed(this._seen)) this._seen = null;
+    if (changed(this._provisional)) this._provisional = null;
+
     const title = text(".atvwebplayersdk-title-text");
-    const episode = text(".atvwebplayersdk-subtitle-text");
     const url = location.origin + location.pathname;
-    if (!title) {
-      // No title found: one group per day rather than none.
-      const day = new Date().toISOString().slice(0, 10);
-      return { id: `untitled-${day}`, title: `Prime Video, ${day}`, url };
+    if (title) {
+      const episode = text(".atvwebplayersdk-episode-info, .atvwebplayersdk-subtitle-text");
+      this._seen = { title, episode, duration };
     }
-    return { id: episode ? `${title} | ${episode}` : title, title: episode ? `${title} · ${episode}` : title, url };
+    if (this._seen) {
+      this._seen.duration ||= duration;
+      const { title, episode } = this._seen;
+      return { id: episode ? `${title} | ${episode}` : title, title: episode ? `${title} · ${episode}` : title, url };
+    }
+    // Unique per viewing, so a provisional group never mixes two sessions.
+    this._provisional ||= {
+      id: `${Date.now()}`,
+      title: document.title.replace(/^Prime Video:\s*/, "").trim() || "Prime Video",
+      duration,
+    };
+    this._provisional.duration ||= duration;
+    return { id: `untitled:${this._provisional.id}`, title: this._provisional.title, url, provisional: true };
   },
 };

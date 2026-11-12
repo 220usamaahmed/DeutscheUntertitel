@@ -105,20 +105,31 @@ const Recorder = {
     if (!info) return null;
     const key = `${VIDEO_PREFIX}${site.id}:${info.id}`;
     if (key !== this.key) {
-      this.flush();
+      // The real title of a provisional group showed up: move its words over.
+      const from = this.provisional && !info.provisional ? this.key : null;
+      const carried = from ? { rec: this.rec, queue: this.queue } : null;
+      if (from) {
+        clearTimeout(this.timer);
+        this.dirty = false;
+        chrome.storage.local.remove(from);
+      } else {
+        this.flush();
+        this.prev = [];
+        this.open = [];
+      }
       this.key = key;
       this.rec = null;
-      this.queue = [];
-      this.prev = [];
-      this.open = [];
+      this.queue = carried ? carried.queue : [];
       chrome.storage.local.get(key).then((r) => {
         if (this.key !== key) return;
         this.rec = r[key] || newRecord({ site: site.id, id: info.id });
+        if (carried?.rec) this.change((rec) => mergeWords(rec, carried.rec));
         const queued = this.queue;
         this.queue = [];
         queued.forEach((fn) => this.change(fn));
       });
     }
+    this.provisional = Boolean(info.provisional);
     this.info = info;
     return info;
   },
@@ -143,6 +154,20 @@ const Recorder = {
     });
   },
 };
+
+// Adds the words of record `from` to `rec`, after the ones it already has.
+function mergeWords(rec, from) {
+  const entries = Object.entries(from.words).sort((a, b) => a[1].o - b[1].o);
+  for (const [lower, e] of entries) {
+    const t = rec.words[lower];
+    if (!t) rec.words[lower] = { ...e, o: rec.next++ };
+    else {
+      t.n += e.n;
+      if (e.c) t.c = 1;
+    }
+  }
+  rec.first = Math.min(rec.first, from.first);
+}
 
 function newRecord({ site, id, title = "", url = "" }) {
   const now = Date.now();
