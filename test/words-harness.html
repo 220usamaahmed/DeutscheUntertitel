@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Words page harness</title></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Words page harness</title></head>
 <body>
 <script>
   // Runs words/words.html with stubbed extension APIs and two fake video records.
@@ -26,6 +26,20 @@
     // exception (a common word marked unknown), which becomes a Learning word.
     known: { haushalt: ["haushalt", "haushalte"] },
     exceptions: { ging: ["ging"] },
+    // For practice: a verb, a noun whose capital comes from the cached lookup (its sentence
+    // starts with it), and a noun with no English saved, so the card translates it on flip.
+    learning: {
+      anfangen: {
+        forms: ["anfangen", "fange", "fängt", "fing", "angefangen"], en: "to begin", added: now - 5000,
+        ctx: "Wir fangen morgen an.", video: { title: "Film · Season 1, Ep. 2", url: "" },
+      },
+      verantwortung: {
+        forms: ["verantwortung", "verantwortungen"], en: "responsibility", added: now - 4000,
+        ctx: "Verantwortung ist wichtig.", video: { title: "Staatsschulden steigen", url: "https://www.youtube.com/watch?v=abc" },
+      },
+      gemeinschaft: { forms: ["gemeinschaft"], en: "", added: now - 3000, ctx: "Die Gemeinschaft hilft." },
+    },
+    "cache.info": { Verantwortung: { lemma: "verantwortung", partOfSpeech: "noun", alternatives: [] } },
     "cache.translations": { Haushalt: "budget", Schulden: "debts" },
   };
   const listeners = [];

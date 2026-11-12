@@ -1,5 +1,5 @@
-// The words page: recorded words by video (see src/recorder.js), and the Learning and
-// Known lists. Tabs: #videos, #learning, #known.
+// The words page: recorded words by video (see src/recorder.js), the Learning and Known
+// lists, and practice cards for the Learning list. Tabs: #videos, #learning, #known.
 
 const $ = (id) => document.getElementById(id);
 const CONTEXT_SEP = "␟"; // same key format as the word popup's context cache
@@ -10,6 +10,7 @@ const jobs = []; // { key, lower }: words put on a list that still need their lo
 let working = false;
 const openGroups = new Set();
 const groupEls = new Map(); // storage key -> <details>
+let practice = null; // while practising: { current: lemma | null, flipped, answered, busy }
 const listState = {
   learning: { query: "", sort: pref("learning.sort", "recent") },
   known: { query: "", sort: pref("known.sort", "recent") },
@@ -37,7 +38,10 @@ const listState = {
 
   Store.watch(async (keys) => {
     if (keys.includes("settings")) await Words.refresh();
-    if (keys.some((k) => ["settings", "known", "learning"].includes(k))) renderAll();
+    if (keys.some((k) => ["settings", "known", "learning"].includes(k))) {
+      renderAll();
+      syncPractice();
+    }
   });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
@@ -71,6 +75,7 @@ function renderCounts() {
   $("count-videos").textContent = Object.keys(records).length || "";
   $("count-learning").textContent = Object.keys(Store.learning).length || "";
   $("count-known").textContent = Object.keys(Store.known).length || "";
+  $("practice-start").disabled = !Object.keys(Store.learning).length;
 }
 
 // --- Videos ---
@@ -112,11 +117,20 @@ function renderGroup(key) {
   const known = entries.filter((e) => e.status === "known" || e.status === "common");
 
   const summary = el("summary");
-  summary.append(el("span", "title", rec.title || rec.id));
+  const head = el("div", "head");
+  head.append(el("div", "title", rec.title || rec.id));
   const site = rec.site === "youtube" ? "YouTube" : "Prime Video";
   const when = new Date(rec.last).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-  const counts = `${fresh.length} new · ${learning.length} learning · ${known.length} known`;
-  summary.append(el("span", "meta", `${site} · ${when} · ${counts}`));
+  const meta = el("div", "meta");
+  meta.append(
+    `${site} · ${when}`,
+    el("span", "dot", "·"),
+    el("span", "badge", `${fresh.length} new`),
+    el("span", "badge learning", `${learning.length} learning`),
+    el("span", "badge known", `${known.length} known`),
+  );
+  head.append(meta);
+  summary.append(icon("chevron"), head);
 
   const actions = el("div", "actions");
   actions.append(
@@ -126,22 +140,31 @@ function renderGroup(key) {
     el("span", "spacer"),
   );
   if (rec.url) {
-    const a = el("a", null, "Open video");
+    const a = el("a", "btn sm", "Open video");
+    a.style.height = "28px";
+    a.style.padding = "0 10px";
+    a.style.fontSize = "12px";
+    a.append(icon("external"));
     a.href = rec.url;
     a.target = "_blank";
     actions.append(a);
   }
   const n = entries.length;
-  actions.append(twoClick("Delete", `Delete ${n} word${n === 1 ? "" : "s"}?`, false, () => chrome.storage.local.remove(key)));
+  const del = twoClick("Delete video", `Delete ${n} word${n === 1 ? "" : "s"}?`, false, () => chrome.storage.local.remove(key));
+  del.classList.add("ghost", "danger");
+  actions.append(del);
 
   const list = el("ul", "words");
   for (const e of fresh) list.append(videoRow(key, e));
-  if (learning.length) list.append(el("li", "heading", "Learning"));
+  if (learning.length) list.append(heading("Learning", learning.length));
   for (const e of learning) list.append(videoRow(key, e));
-  if (known.length) list.append(el("li", "heading", "Known"));
+  if (known.length) list.append(heading("Known", known.length));
   for (const e of known) list.append(videoRow(key, e));
+  if (!entries.length) list.append(el("li", "empty muted", "No words in this video."));
 
-  details.replaceChildren(summary, actions, list);
+  const body = el("div", "body");
+  body.append(actions, list);
+  details.replaceChildren(summary, body);
   if (details.open) translateGroup(key);
   return details;
 }
@@ -149,38 +172,41 @@ function renderGroup(key) {
 function videoRow(key, e) {
   const li = el("li", `row ${e.status}`);
   li.dataset.word = e.lower;
+  if (arrived.has(e.lower)) li.classList.add("arrived");
   if (e.status !== "new") li.classList.add("handled");
 
   const main = el("div", "main");
-  const head = el("div");
+  const head = el("div", "head");
   head.append(el("span", "word", e.w));
   const lemma = Store.info.peek(e.w)?.lemma;
-  if (lemma && lemma.toLowerCase() !== e.lower) head.append(" ", el("span", "lemma", `→ ${lemma}`));
-  head.append(" ", el("span", "en", Store.translations.peek(e.w) ?? "…"));
-  if (e.n > 1) head.append(" ", el("span", "count", `×${e.n}`));
-  if (e.c) head.append(" ", el("span", "clicked", "clicked"));
+  if (lemma && lemma.toLowerCase() !== e.lower) head.append(el("span", "lemma", `→ ${lemma}`));
+  head.append(el("span", "en", Store.translations.peek(e.w) ?? "…"));
+  const badges = el("span", "badges");
+  if (e.n > 1) badges.append(el("span", "badge", `×${e.n}`));
+  if (e.c) badges.append(el("span", "badge outline", "clicked"));
+  if (badges.children.length) head.append(badges);
   main.append(head, context(e.ctx, [e.w]));
 
   const buttons = el("div", "buttons");
   const info = () => Store.info.peek(e.w) || null;
   if (e.status === "new") {
     buttons.append(
-      button("Known", "known", () => putOnList(key, [e.lower], "known")),
-      button("Learning", "learning", () => putOnList(key, [e.lower], "learning")),
+      button("Known", "known", () => arriveThen([e.lower], () => putOnList(key, [e.lower], "known")), "known", "check"),
+      button("Learning", "learning", () => arriveThen([e.lower], () => putOnList(key, [e.lower], "learning")), "learning", "book"),
     );
   } else if (e.status === "common") {
     buttons.append(
       el("span", "note", "common word"),
-      button("Learning", "learning", () => putOnList(key, [e.lower], "learning")),
+      button("Learning", "learning", () => arriveThen([e.lower], () => putOnList(key, [e.lower], "learning")), "learning", "book"),
     );
   } else {
     const other = e.status === "known" ? "learning" : "known";
     buttons.append(
       button(LIST_LABEL[other], other, () => {
         const found = Words.find(e.w);
-        if (found) Words.move(found.lemma, other);
-      }),
-      button("Remove", null, () => Words.remove(e.w, info())),
+        if (found) arriveThen([e.lower, found.lemma.toLowerCase()], () => Words.move(found.lemma, other));
+      }, other, other === "known" ? "check" : "book"),
+      button("Remove", "ghost danger", () => arriveThen([e.lower], () => Words.remove(e.w, info())), "remove", "x"),
     );
   }
   li.append(main, buttons);
@@ -328,10 +354,17 @@ function buildListView(list) {
   });
   const count = el("span", "muted");
   count.id = `${list}-count`;
-  toolbar.append(search, count, el("span", "spacer"), sort);
+  toolbar.append(search, count, el("span", "spacer"));
+  if (list === "learning") {
+    const start = plainButton("Practice", "", startPractice, "play");
+    start.id = "practice-start";
+    toolbar.append(start);
+  }
+  toolbar.append(sort);
   const ul = el("ul", "list");
   ul.id = `${list}-list`;
   view.append(toolbar, ul);
+  if (list === "learning") view.append($("practice")); // after the list, in the page's order
 }
 
 function renderList(list) {
@@ -357,35 +390,33 @@ function renderList(list) {
 
 function listRow(list, e) {
   const li = el("li", `row ${list}`);
+  if (arrived.has(e.lemma.toLowerCase())) li.classList.add("arrived");
   const main = el("div", "main");
-  const head = el("div");
+  const head = el("div", "head");
   head.append(el("span", "word", e.lemma));
-  const en = e.en || Store.translations.peek(e.lemma) || Store.translations.peek(capitalise(e.lemma));
-  if (en) head.append(" ", el("span", "en", en));
+  const en = meaningOf(e.lemma, e);
+  if (en) head.append(el("span", "en", en));
   if (e.added) {
     const date = new Date(e.added).toLocaleDateString(undefined, { dateStyle: "medium" });
-    head.append(" ", el("span", "added", `· added ${date}`));
+    head.append(el("span", "added", `Added ${date}`));
   }
   main.append(head);
   const forms = e.forms.filter((f) => f !== e.lemma);
   if (forms.length) main.append(el("div", "forms", forms.join(", ")));
   if (e.ctx) main.append(context(e.ctx, [e.lemma, ...forms]));
-  if (e.video?.title) {
-    const v = el("div", "video");
-    if (e.video.url) {
-      const a = el("a", null, e.video.title);
-      a.href = e.video.url;
-      a.target = "_blank";
-      v.append(a);
-    } else v.textContent = e.video.title;
-    main.append(v);
-  }
+  if (e.video?.title) main.append(videoLine(e.video));
 
   const other = list === "known" ? "learning" : "known";
   const buttons = el("div", "buttons");
   buttons.append(
-    button(`Move to ${LIST_LABEL[other]}`, other, () => Words.move(e.lemma, other)),
-    button("Remove", null, () => Words.removeEntry(list, e.lemma)),
+    button(
+      `Move to ${LIST_LABEL[other]}`,
+      other,
+      () => arriveThen([e.lemma.toLowerCase()], () => Words.move(e.lemma, other)),
+      other,
+      other === "known" ? "check" : "book",
+    ),
+    button("Remove", "ghost danger", () => Words.removeEntry(list, e.lemma), "remove", "x"),
   );
   li.append(main, buttons);
   return li;
@@ -393,20 +424,258 @@ function listRow(list, e) {
 
 const capitalise = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
+// The English saved with a list entry, else a cached translation of its lemma.
+function meaningOf(lemma, e) {
+  return e.en || Store.translations.peek(lemma) || Store.translations.peek(capitalise(lemma)) || "";
+}
+
+// The video a word came from, linked when it has a URL.
+function videoLine(video) {
+  const v = el("div", "video");
+  if (video.url) {
+    const a = el("a", null, video.title);
+    a.href = video.url;
+    a.target = "_blank";
+    v.append(a);
+  } else v.textContent = video.title;
+  return v;
+}
+
+// --- Practice ---
+
+// One card at a time from the Learning list, drawn at random and weighted by how hard
+// each word was rated (Words.pick, Words.rate). Hard and Easy change the word's weight;
+// Known moves it to the Known list, so it never comes back. There's no end until the
+// list is empty.
+
+function startPractice() {
+  if (!Object.keys(Store.learning).length) return;
+  practice = { current: null, flipped: false, answered: 0, busy: false };
+  showPractice(true);
+  nextCard();
+}
+
+function stopPractice() {
+  practice = null;
+  showPractice(false);
+}
+
+function showPractice(on) {
+  $("view-learning").querySelector(".toolbar").hidden = on;
+  $("learning-list").hidden = on;
+  $("practice").hidden = !on;
+}
+
+function nextCard() {
+  practice.current = Words.pick(practice.current);
+  practice.flipped = false;
+  practice.busy = false;
+  renderPractice(true);
+}
+
+function flip() {
+  if (!practice?.current || practice.flipped) return;
+  practice.flipped = true;
+  renderPractice();
+}
+
+async function answer(rating) {
+  const p = practice;
+  if (!p?.flipped || p.busy) return;
+  p.busy = true;
+  p.answered++;
+  try {
+    if (rating === "known") await Words.move(p.current, "known");
+    else await Words.rate(p.current, rating);
+  } catch (e) {
+    console.warn("[Deutsche Untertitel] saving the answer failed", e);
+  }
+  if (practice === p) nextCard();
+}
+
+// The lists changed (this page's own save, or another tab): refresh the counter, and
+// move on if the card's word is no longer on Learning.
+function syncPractice() {
+  if (!practice || practice.busy) return;
+  const gone = practice.current && !Store.learning[practice.current];
+  const revived = !practice.current && Object.keys(Store.learning).length;
+  if (gone || revived) nextCard();
+  else renderPractice();
+}
+
+function renderPractice(fresh = false) {
+  const n = Object.keys(Store.learning).length;
+  const bar = el("div", "bar");
+  bar.append(
+    plainButton("Back to list", "sm ghost", stopPractice, "back"),
+    el("span", "spacer"),
+    el("span", "muted", `${practice.answered} answered this sitting · ${n} word${n === 1 ? "" : "s"} in Learning`),
+  );
+
+  const lemma = practice.current;
+  const e = lemma && Store.learning[lemma];
+  const parts = [bar];
+  if (!e) {
+    const done = el("div", `card done${fresh ? " fresh" : ""}`);
+    done.append(el("strong", null, "All done"), el("span", "hint", "No words are left in Learning."));
+    parts.push(done);
+  } else {
+    const shown = cardWord(lemma, e);
+    const card = el("div", `card ${practice.flipped ? "" : "front"}${fresh ? " fresh" : ""}`.trim());
+    card.append(el("div", "word", shown));
+    const answers = el("div", "answers");
+    if (practice.flipped) {
+      card.append(cardBack(lemma, e, shown));
+      answers.append(
+        plainButton("Hard", "lg hard", () => answer("hard"), null, "1"),
+        plainButton("Easy", "lg", () => answer("easy"), null, "2"),
+        plainButton("Known", "lg known", () => answer("known"), null, "3"),
+      );
+    } else {
+      card.append(el("div", "hint", "Click the card or press Space to see the answer"));
+      card.addEventListener("click", flip);
+      answers.append(plainButton("Show answer", "lg", flip, null, "Space"));
+    }
+    parts.push(card, answers);
+  }
+  $("practice").replaceChildren(...parts);
+}
+
+// The back of a card: English, forms, the sentence the word came from, and its video.
+function cardBack(lemma, e, shown) {
+  const back = el("div", "back");
+  const meaning = meaningOf(lemma, e);
+  const canTranslate = AI.hasTranslator();
+  const en = el("div", "en", meaning || (canTranslate ? "…" : "No meaning saved"));
+  back.append(en);
+  if (!meaning && canTranslate) translateCard(lemma, shown, en);
+  const forms = e.forms.filter((f) => f !== lemma);
+  if (forms.length) back.append(el("div", "forms", forms.join(", ")));
+  if (e.ctx) back.append(context(e.ctx, [lemma, ...forms]));
+  if (e.video?.title) back.append(videoLine(e.video));
+  return back;
+}
+
+// For a word saved without its English: translate it now, and cache the result.
+async function translateCard(lemma, shown, span) {
+  let en = "";
+  try {
+    en = await AI.translate(shown);
+    Store.translations.set(shown, en);
+  } catch (err) {
+    console.warn("[Deutsche Untertitel] translating the card failed", err);
+  }
+  if (practice?.current === lemma && span.isConnected) span.textContent = en || "No meaning saved";
+}
+
+// Lemmas are stored in lowercase, but German nouns are capitalised: capitalise it if a
+// cached lookup of any of its forms says noun, or its saved sentence has it capitalised
+// somewhere other than the start of a sentence.
+function cardWord(lemma, e) {
+  const isNoun = [lemma, ...e.forms].some((f) =>
+    [f, capitalise(f)].some((k) => Store.info.peek(k)?.partOfSpeech === "noun"),
+  );
+  return isNoun || capitalisedMidSentence(lemma, e.ctx) ? capitalise(lemma) : lemma;
+}
+
+function capitalisedMidSentence(lemma, ctx = "") {
+  const m = new RegExp(`(?<!\\p{L})${escapeRe(lemma)}(?!\\p{L})`, "iu").exec(ctx);
+  if (!m || !/^\p{Lu}/u.test(m[0])) return false;
+  const before = ctx.slice(0, m.index).trimEnd();
+  return Boolean(before) && !/[.!?…:]["“”„»«']*$/.test(before);
+}
+
+// Space or Enter flips the card; 1/2/3 or H/E/K answer Hard/Easy/Known.
+addEventListener("keydown", (ev) => {
+  if (!practice?.current || practice.busy || $("view-learning").hidden) return;
+  if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.target.closest?.("input, select, textarea")) return;
+  const key = ev.key.toLowerCase();
+  if (key === " " || key === "enter") {
+    if (ev.target.closest?.("button, a, summary")) return; // the focused control acts on its own
+    ev.preventDefault();
+    flip();
+    return;
+  }
+  const rating = { 1: "hard", h: "hard", 2: "easy", e: "easy", 3: "known", k: "known" }[key];
+  if (rating && practice.flipped) {
+    ev.preventDefault();
+    answer(rating);
+  }
+});
+
+function plainButton(label, cls, onClick, iconName, key) {
+  const b = el("button", cls);
+  if (iconName) b.append(icon(iconName));
+  b.append(label);
+  if (key) b.append(el("kbd", null, key));
+  b.addEventListener("click", onClick);
+  return b;
+}
+
 // --- Helpers ---
 
-function button(label, cls, onClick) {
-  const b = el("button", `small ${cls || ""}`.trim(), label);
-  b.addEventListener("click", () => {
+// A row action. The row animates out first (`leave` is where it's heading: known,
+// learning or remove), then the action runs and the lists re-render.
+function button(label, cls, onClick, leave, iconName) {
+  const b = el("button", `sm ${cls || ""}`.trim());
+  if (iconName) b.append(icon(iconName));
+  b.append(label);
+  b.addEventListener("click", async () => {
     b.disabled = true;
+    const row = b.closest(".row");
+    if (row) await leaveRow(row, leave);
     onClick();
   });
   return b;
 }
 
+// Words (lowercase) whose rows should flash when they next render in their new place.
+const arrived = new Set();
+function arriveThen(lowers, fn) {
+  for (const l of lowers) arrived.add(l);
+  setTimeout(() => arrived.clear(), 2500);
+  return fn();
+}
+
+function leaveRow(row, to) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return Promise.resolve();
+  row.style.height = `${row.offsetHeight}px`;
+  row.offsetHeight; // commit the explicit height so it can transition to 0
+  row.classList.add("leaving", `to-${to}`);
+  return new Promise((resolve) => {
+    row.addEventListener("transitionend", (ev) => ev.propertyName === "height" && resolve(), { once: false });
+    setTimeout(resolve, 350);
+  });
+}
+
+function heading(label, n) {
+  const li = el("li", "heading", label);
+  li.append(el("span", "badge", String(n)));
+  return li;
+}
+
+const ICONS = {
+  chevron: "m9 18 6-6-6-6",
+  check: "M20 6 9 17l-5-5",
+  x: "M18 6 6 18M6 6l12 12",
+  external: "M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6",
+  play: "M6 3l14 9-14 9z",
+  back: "m12 19-7-7 7-7M19 12H5",
+  book: "M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z",
+};
+function icon(name) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", `icon ${name === "chevron" ? "chev" : ""}`.trim());
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", ICONS[name]);
+  svg.append(path);
+  return svg;
+}
+
 // Two clicks: the first asks, the second acts. Reverts after a few seconds.
 function twoClick(label, question, disabled, onConfirm) {
-  const b = el("button", null, label);
+  const b = el("button", "sm", label);
   b.disabled = disabled;
   let timer = null;
   b.addEventListener("click", () => {

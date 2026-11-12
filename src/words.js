@@ -7,6 +7,9 @@ const LIST_FILES = {
   top: "lists/top2000.json",
 };
 
+// Practice weights (see Words.rate): a Learning word without one counts as `start`.
+const WEIGHT = { start: 4, min: 1, max: 16 };
+
 const Words = {
   segmenter: new Intl.Segmenter("de", { granularity: "word" }),
   builtIn: new Set(), // common words: the enabled built-in lists
@@ -92,11 +95,14 @@ const Words = {
   async addAll(list, items) {
     for (const { word, info, extra = {} } of items) {
       const { lemma, forms } = entryFor(word, info);
-      this._drop(word, lemma);
+      const dropped = this._drop(word, lemma);
       const entry = { forms, en: extra.en || "", added: Date.now() };
       if (list === "learning") {
         if (extra.ctx) entry.ctx = extra.ctx;
         if (extra.video?.title) entry.video = { title: extra.video.title, url: extra.video.url || "" };
+        // A lookup filling in a Learning word's entry keeps its practice weight.
+        const weight = dropped.find((d) => d.list === "learning")?.entry.w;
+        if (weight) entry.w = weight;
       }
       Store[list][lemma] = entry;
     }
@@ -109,11 +115,12 @@ const Words = {
     await this._save();
   },
 
-  // Moves an entry to the other list as it is, without a new lookup.
+  // Moves an entry to the other list as it is, without a new lookup. Its practice
+  // weight is dropped, so a word coming back to Learning starts out new.
   async move(lemma, to) {
     const from = to === "known" ? "learning" : "known";
-    const entry = Store[from][lemma];
-    if (!entry) return;
+    if (!Store[from][lemma]) return;
+    const { w, ...entry } = Store[from][lemma];
     delete Store[from][lemma];
     Store[to][lemma] = { ...entry, added: Date.now() };
     await this._save();
@@ -124,13 +131,45 @@ const Words = {
     await this._save();
   },
 
+  // Practice: how likely a Learning word is to be drawn next is its weight `w`
+  // (absent = new). Hard doubles it, Easy halves it, within WEIGHT.min..max.
+  async rate(lemma, rating) {
+    const entry = Store.learning[lemma];
+    if (!entry) return;
+    const w = entry.w ?? WEIGHT.start;
+    entry.w = Math.min(WEIGHT.max, Math.max(WEIGHT.min, rating === "hard" ? w * 2 : w / 2));
+    await this._save();
+  },
+
+  // The next Learning lemma to practise: random, weighted by each entry's weight, and
+  // never `previous` (the card just shown) unless it's the only word left. Null if the
+  // list is empty.
+  pick(previous) {
+    const keys = Object.keys(Store.learning);
+    const pool = keys.length > 1 ? keys.filter((k) => k !== previous) : keys;
+    if (!pool.length) return null;
+    const weight = (k) => Store.learning[k].w ?? WEIGHT.start;
+    let r = Math.random() * pool.reduce((sum, k) => sum + weight(k), 0);
+    for (const k of pool) {
+      r -= weight(k);
+      if (r < 0) return k;
+    }
+    return pool.at(-1);
+  },
+
+  // The entries that were taken off, as [{ list, entry }].
   _drop(word, lemma) {
     const w = word.toLowerCase();
-    for (const list of [Store.known, Store.learning]) {
+    const dropped = [];
+    for (const [name, list] of [["known", Store.known], ["learning", Store.learning]]) {
       for (const [key, e] of Object.entries(list)) {
-        if (key === lemma || e.forms.includes(w)) delete list[key];
+        if (key === lemma || e.forms.includes(w)) {
+          delete list[key];
+          dropped.push({ list: name, entry: e });
+        }
       }
     }
+    return dropped;
   },
 
   async _save() {

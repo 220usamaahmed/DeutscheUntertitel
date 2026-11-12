@@ -33,10 +33,18 @@ clicked them. Words in `[…]` or `(…)` are skipped.
 Open **Words** from the toolbar popup. The **Videos** tab lists each video's words with
 **Known** and **Learning** buttons; handled words move to the bottom, where they can be
 switched or removed. **Mark the rest as known** handles everything still new.
-**Delete** removes a video's record; words already on a list stay there. The
+**Delete video** removes a video's record; words already on a list stay there. The
 **Learning** and **Known** tabs list your words with their meaning and forms, with
 search, sorting, and buttons to move or remove them. Recording can be turned off on
 the settings page.
+
+**Practice** (a button on the Learning tab) shows your Learning words as cards, one at
+a time: the German word first, then Space or a click for its meaning, forms, sentence
+and video. **Hard** and **Easy** change how often the word comes up (each word has a
+weight that Hard doubles and Easy halves, from 1 to 16, saved between sittings), and
+**Known** moves it to the Known list. The cards never run out until Learning is empty.
+Keys: Space flips; 1, 2, 3 (or H, E, K) answer Hard, Easy, Known. A word moved from
+Known back to Learning starts over as new.
 
 On Prime Video the title and episode only appear while the player's controls show.
 Until you first move the mouse, words go to a group named after the page title; they
