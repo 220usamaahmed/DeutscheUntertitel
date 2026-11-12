@@ -143,7 +143,13 @@ class Overlay {
         if (id === this.renderId) this.english = en.textContent;
       });
     } else {
-      for (const [rt, word] of glosses) this.fill(rt, id, () => this.translateWord(word));
+      for (const [rt, word] of glosses) {
+        // A translation that matches the word (mostly names) adds nothing, so it's left out.
+        this.fill(rt, id, async () => {
+          const t = await this.translateWord(word);
+          return t.trim().toLowerCase() === word.toLowerCase() ? " " : t;
+        });
+      }
     }
     this.box.hidden = false;
     this.place();
