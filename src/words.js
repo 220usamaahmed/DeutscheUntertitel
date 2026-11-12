@@ -85,14 +85,21 @@ const Words = {
   // `info` is the Prompt API lookup (lemma, forms), or null if it failed.
   // `extra`: { en, ctx, video: { title, url } }; ctx and video are kept for Learning.
   async add(list, word, info, extra = {}) {
-    const { lemma, forms } = entryFor(word, info);
-    this._drop(word, lemma);
-    const entry = { forms, en: extra.en || "", added: Date.now() };
-    if (list === "learning") {
-      if (extra.ctx) entry.ctx = extra.ctx;
-      if (extra.video?.title) entry.video = { title: extra.video.title, url: extra.video.url || "" };
+    await this.addAll(list, [{ word, info, extra }]);
+  },
+
+  // Several add()s with one save: [{ word, info, extra }].
+  async addAll(list, items) {
+    for (const { word, info, extra = {} } of items) {
+      const { lemma, forms } = entryFor(word, info);
+      this._drop(word, lemma);
+      const entry = { forms, en: extra.en || "", added: Date.now() };
+      if (list === "learning") {
+        if (extra.ctx) entry.ctx = extra.ctx;
+        if (extra.video?.title) entry.video = { title: extra.video.title, url: extra.video.url || "" };
+      }
+      Store[list][lemma] = entry;
     }
-    Store[list][lemma] = entry;
     await this._save();
   },
 

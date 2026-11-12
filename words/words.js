@@ -6,8 +6,7 @@ const CONTEXT_SEP = "␟"; // same key format as the word popup's context cache
 const LIST_LABEL = { known: "Known", learning: "Learning" };
 
 let records = {}; // storage key -> record
-const saving = new Set(); // "key\0word" waiting for its lookup
-const jobs = []; // { key, lower, list }
+const jobs = []; // { key, lower }: words put on a list that still need their lookup
 let working = false;
 const openGroups = new Set();
 const groupEls = new Map(); // storage key -> <details>
@@ -105,11 +104,10 @@ function renderGroup(key) {
 
   // Common words count as known here: they're handled, just not by you.
   const entries = Object.entries(rec.words).map(([lower, e]) => {
-    const status = saving.has(job(key, lower)) ? "saving" : Words.status(e.w) || "new";
-    return { lower, ...e, status };
+    return { lower, ...e, status: Words.status(e.w) || "new" };
   });
   entries.sort($("sort").value === "frequent" ? (a, b) => b.n - a.n || a.o - b.o : (a, b) => a.o - b.o);
-  const fresh = entries.filter((e) => e.status === "new" || e.status === "saving");
+  const fresh = entries.filter((e) => e.status === "new");
   const learning = entries.filter((e) => e.status === "learning");
   const known = entries.filter((e) => e.status === "known" || e.status === "common");
 
@@ -121,10 +119,9 @@ function renderGroup(key) {
   summary.append(el("span", "meta", `${site} · ${when} · ${counts}`));
 
   const actions = el("div", "actions");
-  const rest = fresh.filter((e) => e.status === "new");
   actions.append(
-    twoClick("Mark the rest as known", `Mark ${rest.length} as known?`, !rest.length, () => {
-      for (const e of rest) queue(key, e.lower, "known");
+    twoClick("Mark the rest as known", `Mark ${fresh.length} as known?`, !fresh.length, () => {
+      putOnList(key, fresh.map((e) => e.lower), "known");
     }),
     el("span", "spacer"),
   );
@@ -152,7 +149,7 @@ function renderGroup(key) {
 function videoRow(key, e) {
   const li = el("li", `row ${e.status}`);
   li.dataset.word = e.lower;
-  if (e.status !== "new" && e.status !== "saving") li.classList.add("handled");
+  if (e.status !== "new") li.classList.add("handled");
 
   const main = el("div", "main");
   const head = el("div");
@@ -168,13 +165,14 @@ function videoRow(key, e) {
   const info = () => Store.info.peek(e.w) || null;
   if (e.status === "new") {
     buttons.append(
-      button("Known", "known", () => queue(key, e.lower, "known")),
-      button("Learning", "learning", () => queue(key, e.lower, "learning")),
+      button("Known", "known", () => putOnList(key, [e.lower], "known")),
+      button("Learning", "learning", () => putOnList(key, [e.lower], "learning")),
     );
-  } else if (e.status === "saving") {
-    buttons.append(el("span", "note"));
   } else if (e.status === "common") {
-    buttons.append(el("span", "note", "common word"), button("Learning", "learning", () => queue(key, e.lower, "learning")));
+    buttons.append(
+      el("span", "note", "common word"),
+      button("Learning", "learning", () => putOnList(key, [e.lower], "learning")),
+    );
   } else {
     const other = e.status === "known" ? "learning" : "known";
     buttons.append(
@@ -240,32 +238,45 @@ async function runTranslations() {
 
 // --- Putting recorded words on a list ---
 
-const job = (key, lower) => `${key}\0${lower}`;
-
-function queue(key, lower, list) {
-  if (saving.has(job(key, lower))) return;
-  saving.add(job(key, lower));
-  jobs.push({ key, lower, list });
-  if (records[key]) renderGroup(key);
+// Puts the words on the list straight away, with whatever lookup is cached, so their rows
+// move at once. Words without a full lookup are then looked up one at a time in the
+// background and their entries filled in (lemma, forms, meaning in context).
+async function putOnList(key, lowers, list) {
+  const rec = records[key];
+  if (!rec) return;
+  const video = { title: rec.title, url: rec.url };
+  const items = [];
+  for (const lower of lowers) {
+    const e = rec.words[lower];
+    if (!e) continue;
+    const sentence = e.ctx || e.w;
+    const info = Store.info.peek(e.w) || null;
+    const meaning = Store.context.peek(e.w + CONTEXT_SEP + sentence);
+    items.push({ word: e.w, info, extra: { en: meaning || Store.translations.peek(e.w) || "", ctx: sentence, video } });
+    const complete = info?.forms && meaning !== undefined;
+    if (!complete && !jobs.some((j) => j.key === key && j.lower === lower)) jobs.push({ key, lower });
+  }
+  await Words.addAll(list, items);
   runJobs();
 }
 
-// One word at a time: two Gemini Nano calls each, like the word popup.
+// One word at a time: up to two Gemini Nano calls each, like the word popup.
 async function runJobs() {
   if (working) return;
   working = true;
   while (jobs.length) {
-    const { key, lower, list } = jobs.shift();
+    const { key, lower } = jobs.shift();
     const rec = records[key];
     const e = rec?.words[lower];
-    if (e) await addToList(list, e.w, e.ctx || e.w, { title: rec.title, url: rec.url });
-    saving.delete(job(key, lower));
-    if (records[key]) renderGroup(key);
+    if (e) await completeEntry(e.w, e.ctx || e.w, { title: rec.title, url: rec.url });
   }
   working = false;
 }
 
-async function addToList(list, word, sentence, video) {
+// Looks the word up and replaces its quick entry with the full one, on whichever list
+// it's on by then; nothing if it was taken off meanwhile.
+async function completeEntry(word, sentence, video) {
+  if (!Words.find(word)) return;
   let info = Store.info.get(word) || null;
   let en = Store.context.get(word + CONTEXT_SEP + sentence);
   try {
@@ -281,11 +292,14 @@ async function addToList(list, word, sentence, video) {
       Store.info.set(word, info);
     }
   } catch (e) {
-    // Saved with what we have: the word as written, plus the lemma if the first call worked.
+    // Keep what we have: the word as written, plus the lemma if the first call worked.
     console.warn("[Deutsche Untertitel] lookup failed", word, e);
+    if (!info) return;
   }
+  const found = Words.find(word);
+  if (!found) return;
   en ||= Store.translations.peek(word) || "";
-  await Words.add(list, word, info, { en, ctx: sentence, video });
+  await Words.add(found.list, word, info, { en, ctx: sentence, video });
 }
 
 // --- Learning and Known tabs ---
