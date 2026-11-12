@@ -59,6 +59,7 @@
   button.confirm { background: var(--destructive); border-color: var(--destructive); color: #fff; }
   button.confirm:hover:not(:disabled) { background: var(--destructive); filter: brightness(0.92); }
   button.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+  button.sm.icon { width: 28px; padding: 0; }
 
   /* Input / Select */
   input[type=search], select { font: inherit; font-size: 13px; height: 36px; padding: 0 12px; border-radius: calc(var(--radius) - 2px); border: 1px solid var(--input); background: var(--background); color: var(--foreground); box-shadow: var(--shadow); }
@@ -124,6 +125,8 @@
   .row .video a { text-decoration: underline; text-decoration-color: var(--border); }
   .row .video a:hover { color: var(--foreground); text-decoration-color: currentColor; }
   .row.handled .word { color: var(--muted-foreground); }
+  .row.selected { background: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: inset 3px 0 0 var(--primary); }
+  #groups .row[data-key] { cursor: pointer; }
   .heading { display: flex; align-items: center; gap: 8px; padding: 20px 20px 12px; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-foreground); border-top: 1px solid var(--border); margin-top: 8px; border-bottom: 1px solid var(--border); }
   .heading .badge { text-transform: none; letter-spacing: 0; }
 

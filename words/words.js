@@ -14,6 +14,7 @@ const openGroups = new Set();
 // progress, so rows and group headers are kept and reused while what they show is the same.
 const groupState = new Map(); // storage key -> { details, body, list, summary, actions, headSig, rows, headings }
 const listRows = { learning: new Map(), known: new Map() }; // lemma -> { li, sig }
+let selected = null; // the video row the 1/2/3 keys act on: { key, lower }
 let practice = null; // while practising: { current: lemma | null, flipped, answered, busy }
 const listState = {
   learning: { query: "", sort: pref("learning.sort", "recent") },
@@ -214,6 +215,7 @@ function videoRow(g, key, e) {
     cached = { li: buildVideoRow(key, e), sig };
     g.rows.set(e.lower, cached);
   }
+  cached.li.classList.toggle("selected", selected?.key === key && selected.lower === e.lower);
   const lemma = Store.info.peek(e.w)?.lemma;
   const label = lemma && lemma.toLowerCase() !== e.lower ? `→ ${lemma}` : "";
   const lemmaEl = cached.li.querySelector(".lemma");
@@ -226,6 +228,7 @@ function videoRow(g, key, e) {
 function buildVideoRow(key, e) {
   const li = el("li", `row ${e.status}`);
   li.dataset.word = e.lower;
+  li.dataset.key = key;
   flashWhenArrived(li, e.lower);
   if (e.status !== "new") li.classList.add("handled");
 
@@ -239,17 +242,12 @@ function buildVideoRow(key, e) {
   main.append(head, context(e.ctx, [e.w]));
 
   const buttons = el("div", "buttons");
-  const info = () => Store.info.peek(e.w) || null;
+  const known = () => button("Known", "known", () => assign(key, e.lower, "known"), "known", "check");
+  const learning = () => button("Learning", "learning", () => assign(key, e.lower, "learning"), "learning", "book");
   if (e.status === "new") {
-    buttons.append(
-      button("Known", "known", () => arriveThen([e.lower], () => putOnList(key, [e.lower], "known")), "known", "check"),
-      button("Learning", "learning", () => arriveThen([e.lower], () => putOnList(key, [e.lower], "learning")), "learning", "book"),
-    );
+    buttons.append(known(), learning());
   } else if (e.status === "common") {
-    buttons.append(
-      el("span", "note", "common word"),
-      button("Learning", "learning", () => arriveThen([e.lower], () => putOnList(key, [e.lower], "learning")), "learning", "book"),
-    );
+    buttons.append(el("span", "note", "common word"), learning());
   } else {
     const other = e.status === "known" ? "learning" : "known";
     buttons.append(
@@ -257,9 +255,10 @@ function buildVideoRow(key, e) {
         const found = Words.find(e.w);
         if (found) arriveThen([e.lower, found.lemma.toLowerCase()], () => Words.move(found.lemma, other));
       }, other, other === "known" ? "check" : "book"),
-      button("Remove", "ghost danger", () => arriveThen([e.lower], () => Words.remove(e.w, info())), "remove", "x"),
     );
   }
+  // Takes the word out of this video's list only; a word already on a list stays there.
+  buttons.append(iconButton("Remove from this video", () => assign(key, e.lower, "remove"), "remove"));
   li.append(main, buttons);
   return li;
 }
@@ -479,7 +478,7 @@ function listRow(list, e) {
       other,
       other === "known" ? "check" : "book",
     ),
-    button("Remove", "ghost danger", () => Words.removeEntry(list, e.lemma), "remove", "x"),
+    iconButton("Remove from the list", () => Words.removeEntry(list, e.lemma), "remove"),
   );
   li.append(main, buttons);
   return li;
@@ -694,6 +693,70 @@ addEventListener("keydown", (ev) => {
   }
 });
 
+// --- Quick assign: click a video row to select it, then 1 Known, 2 Learning, 3 Remove ---
+
+const selectedRow = (s) => groupState.get(s.key)?.rows.get(s.lower)?.li;
+
+function select(key, lower, scroll = true) {
+  const prev = selected;
+  selected = key ? { key, lower } : null;
+  if (prev) selectedRow(prev)?.classList.remove("selected");
+  const li = selected && selectedRow(selected);
+  if (!li) return;
+  li.classList.add("selected");
+  if (scroll) li.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+// The row after this one; a row still new only moves on to other new rows.
+function nextRow(row) {
+  const fresh = !row.classList.contains("handled");
+  for (let n = row.nextElementSibling; n; n = n.nextElementSibling) {
+    if (n.matches(".row:not(.leaving)") && !(fresh && n.classList.contains("handled"))) return n;
+  }
+  return null;
+}
+
+// Known, Learning or Remove (from this video's list) for a recorded word. If its row is
+// the selected one, selection moves to the next row straight away, so keys can be pressed
+// in quick succession.
+async function assign(key, lower, kind) {
+  const rec = records[key];
+  const e = rec?.words[lower];
+  if (!e) return;
+  const row = selectedRow({ key, lower });
+  const status = Words.status(e.w);
+  const already = (kind === "known" && (status === "known" || status === "common")) || kind === status;
+  if (selected?.key === key && selected.lower === lower) {
+    const next = row && nextRow(row);
+    if (next) select(next.dataset.key, next.dataset.word, false);
+    else select(null);
+  }
+  if (already) return;
+  if (row) await leaveRow(row, kind);
+  if (selected) selectedRow(selected)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  if (kind === "remove") {
+    delete rec.words[lower];
+    await chrome.storage.local.set({ [key]: rec });
+  } else {
+    arriveThen([lower], () => putOnList(key, [lower], kind));
+  }
+}
+
+$("groups").addEventListener("click", (ev) => {
+  const row = ev.target.closest(".row");
+  if (!row?.dataset.key || ev.target.closest("button, a, summary")) return;
+  select(row.dataset.key, row.dataset.word);
+});
+
+addEventListener("keydown", (ev) => {
+  if (!selected || $("view-videos").hidden) return;
+  if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.target.closest?.("input, select, textarea")) return;
+  const kind = { 1: "known", 2: "learning", 3: "remove" }[ev.key];
+  if (!kind) return;
+  ev.preventDefault();
+  assign(selected.key, selected.lower, kind);
+});
+
 function plainButton(label, cls, onClick, iconName, key) {
   const b = el("button", cls);
   if (iconName) b.append(icon(iconName));
@@ -717,6 +780,14 @@ function button(label, cls, onClick, leave, iconName) {
     if (row) await leaveRow(row, leave);
     onClick();
   });
+  return b;
+}
+
+// A cross-style row action with no text.
+function iconButton(title, onClick, leave, iconName = "x") {
+  const b = button("", "ghost danger icon", onClick, leave, iconName);
+  b.title = title;
+  b.setAttribute("aria-label", title);
   return b;
 }
 

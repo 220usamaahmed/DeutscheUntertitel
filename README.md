@@ -33,7 +33,9 @@ clicked them. Words in `[…]` or `(…)` are skipped.
 Open **Words** from the toolbar popup. The **Videos** tab lists each video's words with
 **Known** and **Learning** buttons; handled words move to the bottom, where they can be
 switched or removed. **Mark the rest as known** handles everything still new.
-**Delete video** removes a video's record; words already on a list stay there. The
+Click a row to select it, then press **1** (Known), **2** (Learning) or **3**
+(remove it from the video's list); the next row is selected after each. The cross on a
+row does the same as 3. **Delete video** removes a video's record; words already on a list stay there. The
 **Learning** and **Known** tabs list your words with their meaning and forms, with
 search, sorting, and buttons to move or remove them. Recording can be turned off in the
 popup's settings.
