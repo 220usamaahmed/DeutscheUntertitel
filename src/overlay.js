@@ -304,9 +304,9 @@ class Overlay {
     this.popupInfo = info;
     const head = [el("b", null, word)];
     if (info.lemma && info.lemma.toLowerCase() !== word.toLowerCase()) {
-      head.push(el("span", "lemma", ` → ${info.lemma}`));
+      head.push(el("span", "lemma", `→ ${info.lemma}`));
     }
-    head.push(el("span", "pos", ` · ${info.partOfSpeech}`));
+    head.push(el("span", "pos", info.partOfSpeech));
     this.popupHead.replaceChildren(...head);
 
     const body = [el("div", "ctx", info.meaningInContext)];
