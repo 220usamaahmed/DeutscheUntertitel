@@ -74,6 +74,7 @@ video tab. The page's `<html data-dtu="ready 0.4.2">` shows which version is run
 | `src/overlay.js` | Caption overlay and word popup |
 | `src/main.js` | Wires the adapter, overlay and settings together |
 | `lists/` | Built-in word lists |
+| `icons/` | Toolbar and extension icons (`german-icon.png` is the source) |
 | `popup/` | Toolbar popup: on/off, mode, models and a settings view |
 | `words/` | Words page: recorded words by video |
 | `test/harness.html` | Fake Prime player for working on the overlay without Prime |
