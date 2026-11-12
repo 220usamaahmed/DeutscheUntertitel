@@ -643,9 +643,31 @@ function cardBack(lemma, e, shown) {
   if (!meaning && canTranslate) translateCard(lemma, shown, en);
   const forms = e.forms.filter((f) => f !== lemma);
   if (forms.length) back.append(el("div", "forms", forms.join(", ")));
-  if (e.ctx) back.append(context(e.ctx, [lemma, ...forms]));
+  if (e.ctx) {
+    back.append(context(e.ctx, [lemma, ...forms]));
+    if (canTranslate) back.append(sentenceTranslation(lemma, e.ctx));
+  }
   if (e.video?.title) back.append(videoLine(e.video));
   return back;
+}
+
+// A button that translates the card's sentence on click. Nothing is stored.
+function sentenceTranslation(lemma, sentence) {
+  const wrap = el("div", "sentence-en");
+  const btn = plainButton("Translate sentence", "sm ghost", async () => {
+    btn.disabled = true;
+    try {
+      const en = await AI.translate(sentence);
+      if (practice?.current !== lemma || !wrap.isConnected) return;
+      wrap.replaceChildren(el("div", "ctx", en));
+    } catch (err) {
+      console.warn("[Deutsche Untertitel] translating the sentence failed", err);
+      btn.disabled = false;
+      btn.replaceChildren("Couldn't translate. Try again");
+    }
+  });
+  wrap.append(btn);
+  return wrap;
 }
 
 // For a word saved without its English: translate it now, and cache the result.
